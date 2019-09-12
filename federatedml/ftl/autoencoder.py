@@ -148,6 +148,10 @@ class Autoencoder(object):
 
         current_lr = self.init_learning_rate if self.learning_rate_decay_func is None \
             else self.learning_rate_decay_func(init_learning_rate=self.init_learning_rate, epoch=epoch)
+
+        if self.learning_rate_decay_func is not None:
+            LOGGER.info("at epoch {0}, learning rate of autoencoder [{1}] decays from {2} to {3}".
+                        format(epoch, self.id, self.init_learning_rate, current_lr))
         self.sess.run([self.new_Wh, self.new_bh],
                       feed_dict={self.grads_W_new: grads_W,
                                  self.grads_b_new: grads_b,

@@ -99,7 +99,7 @@ class HeteroFTLHost(HeteroFTLParty):
         LOGGER.info("@ start host predict")
         features, labels, instances_indexes = convert_instance_table_to_array(host_data)
         host_x = np.squeeze(features)
-        LOGGER.debug("host_x： " + str(host_x.shape))
+        LOGGER.debug("host_x: " + str(host_x.shape))
 
         host_prob = self.host_model.predict(host_x)
         self._do_remote(host_prob,
@@ -227,7 +227,7 @@ class HeteroEncryptFTLHost(HeteroFTLHost):
                                                  tag=self.transfer_variable.generate_transferid(
                                                      self.transfer_variable.decrypt_host_gradient, self.n_iter_),
                                                  idx=-1)[0]
-            self.host_model.receive_gradients(decrypt_host_gradients)
+            self.host_model.receive_gradients(decrypt_host_gradients, epoch=self.n_iter_)
 
             is_stop = self._do_get(name=self.transfer_variable.is_encrypted_ftl_stopped.name,
                                    tag=self.transfer_variable.generate_transferid(self.transfer_variable.is_encrypted_ftl_stopped, self.n_iter_),

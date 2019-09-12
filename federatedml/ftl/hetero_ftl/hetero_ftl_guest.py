@@ -226,7 +226,7 @@ class HeteroEncryptFTLGuest(HeteroFTLGuest):
                                                        self.transfer_variable.decrypt_guest_gradient, self.n_iter_),
                                                    idx=-1)[0]
             LOGGER.debug("receive decrypt_guest_gradients: " + create_shape_msg(decrypt_guest_gradients))
-            self.guest_model.receive_gradients(decrypt_guest_gradients)
+            self.guest_model.receive_gradients(decrypt_guest_gradients, epoch=self.n_iter_)
 
             encrypt_loss = self.guest_model.send_loss()
             self._do_remote(encrypt_loss, name=self.transfer_variable.encrypt_loss.name,

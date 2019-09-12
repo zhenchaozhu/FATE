@@ -70,7 +70,7 @@
             "apply_learning_rate_decay": false
     },
     "FTLDataParam": {
-            "file_path" : "../data/UCI_Credit_Card.csv",
+            "file_path" : "../data/UCI_Credit_Card_train.csv",
             "n_feature_guest": 10,
             "n_feature_host": 23,
             "overlap_ratio" : 0.1,
@@ -80,7 +80,7 @@
             "is_read_table" : false
     },
     "FTLValidDataParam": {
-            "file_path" : "../data/UCI_Credit_Card_val.csv",
+            "file_path" : "../data/UCI_Credit_Card_test.csv",
             "num_samples" : 500,
             "is_read_table" : false
     }

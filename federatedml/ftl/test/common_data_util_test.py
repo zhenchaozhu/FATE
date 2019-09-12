@@ -60,7 +60,7 @@ class TestCommonDataUtil(unittest.TestCase):
         before_overlap_indexes = np.array([8, 9, 10])
         before_host_nonoverlap_indexes = np.array([0, 1, 2, 3, 4, 5, 6, 7, 13, 14])
 
-        self.__test(host_sample_indexes, guest_sample_indexes, before_overlap_indexes, before_host_nonoverlap_indexes)
+        self._test(host_sample_indexes, guest_sample_indexes, before_overlap_indexes, before_host_nonoverlap_indexes)
 
     def test_convert_overlapping_samples_and_labels_2(self):
         host_sample_indexes = np.array([0, 1, 2, 3, 4, 5, 6, 7, 8])
@@ -68,10 +68,10 @@ class TestCommonDataUtil(unittest.TestCase):
         before_overlap_indexes = np.array([0, 1, 2, 3, 4])
         before_host_nonoverlap_indexes = np.array([5, 6, 7, 8])
 
-        self.__test(host_sample_indexes, guest_sample_indexes, before_overlap_indexes, before_host_nonoverlap_indexes)
+        self._test(host_sample_indexes, guest_sample_indexes, before_overlap_indexes, before_host_nonoverlap_indexes)
 
     @staticmethod
-    def __test(host_sample_indexes, guest_sample_indexes, before_overlap_indexes, before_host_nonoverlap_indexes):
+    def _test(host_sample_indexes, guest_sample_indexes, before_overlap_indexes, before_host_nonoverlap_indexes):
         host_x_dict = {}
         host_label_dict = {}
         np.random.seed(100)
