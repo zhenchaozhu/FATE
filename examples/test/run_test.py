@@ -156,6 +156,8 @@ def main():
                             default="test_result")
     arg_parser.add_argument("-e", "--error", type=str, help="file to save error")
     arg_parser.add_argument("-m", "--mode", type=int, help="work mode", default=0, choices=[0, 1])
+    arg_parser.add_argument("-b", "--backend", type=int, help="backend, 0 for eggroll, 1 for spark", default=0,
+                            choices=[0, 1])
     group = arg_parser.add_mutually_exclusive_group()
     group.add_argument("-d", "--dir", type=str, help="dir to find testsuites",
                        default=os.path.join(fate_home, example_path))
@@ -173,8 +175,9 @@ def main():
     interval = args.interval
     skip_data = args.skip_data
     work_mode = args.mode
+    backend = args.backend
 
-    submitter = submit.Submitter(fate_home=fate_home, work_mode=work_mode)
+    submitter = submit.Submitter(fate_home=fate_home, work_mode=work_mode, backend=backend)
 
     @register
     def _on_exit():
