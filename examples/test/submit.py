@@ -14,13 +14,14 @@
 #  limitations under the License.
 #
 
+import collections.abc
 import json
 import os
 import subprocess
 import sys
 import tempfile
 import time
-from string import Template
+from datetime import timedelta
 
 
 class Submitter(object):
@@ -81,86 +82,83 @@ class Submitter(object):
             json.dump(conf, f)
             f.flush()
             if remote_host:
-                scp_out = self.run_cmd(["scp", f.name, f"{remote_host}:{f.name}"])
-                env_path = os.path.join(self._fate_home, "../../init_env.sh")
-                upload_cmd = " && ".join([f"source {env_path}"
-                                          f"python {self._flow_client_path} -f upload -c {f.name}",
-                                          f"rm {f.name}"])
-                upload_out = self.run_cmd(["ssh", remote_host, upload_cmd])
-            else:
-                self.submit(["-f", "upload", "-c", f.name])
-
-    def delete_table(self, namespace, name):
-        pass
-
-    def run_upload(self, data_path, config, remote_host=None):
-        conf = dict(
-            file=data_path,
-            head=config["head"],
-            partition=config["partition"],
-            work_mode=self._work_mode,
-            table_name=config["table_name"],
-            namespace=config["namespace"]
-        )
-        with tempfile.NamedTemporaryFile("w") as f:
-            json.dump(conf, f)
-            f.flush()
-            if remote_host:
-                scp_out = self.run_cmd(["scp", f.name, f"{remote_host}:{f.name}"])
+                self.run_cmd(["scp", f.name, f"{remote_host}:{f.name}"])
                 env_path = os.path.join(self._fate_home, "../../init_env.sh")
                 upload_cmd = " && ".join([f"source {env_path}",
                                           f"python {self._flow_client_path} -f upload -c {f.name}",
                                           f"rm {f.name}"])
-                upload_out = self.run_cmd(["ssh", remote_host, upload_cmd])
+                stdout = self.run_cmd(["ssh", remote_host, upload_cmd])
+                try:
+                    stdout = json.loads(stdout)
+                    status = stdout["retcode"]
+                except json.decoder.JSONDecodeError:
+                    raise ValueError(f"[submit_job]fail, stdout:{stdout}")
+                if status != 0:
+                    raise ValueError(f"[submit_job]fail, status:{status}, stdout:{stdout}")
+                return stdout
             else:
-                stdout = self.submit(["-f", "upload", "-c", f.name])
-                return stdout["jobId"]
+                return self.submit(["-f", "upload", "-c", f.name])
 
-    def submit_job(self, conf_temperate_path, dsl_path, **substitutes):
-        conf = self.render(conf_temperate_path, **substitutes)
+    def delete_table(self, namespace, name):
+        pass
+
+    def submit_job(self, conf_path, roles, submit_type="train", dsl_path=None, model_info=None, substitute=None):
+        conf = self.render(conf_path, roles, model_info, substitute)
+        result = {}
         with tempfile.NamedTemporaryFile("w") as f:
             json.dump(conf, f)
             f.flush()
-            stdout = self.submit(["-f", "submit_job", "-c", f.name, "-d", dsl_path])
-        result = {}
-        result['jobId'] = stdout["jobId"]
-        result['model_info'] = stdout["data"]["model_info"]
+            if submit_type == "train":
+                stdout = self.submit(["-f", "submit_job", "-c", f.name, "-d", dsl_path])
+                result['model_info'] = stdout["data"]["model_info"]
+            else:
+                stdout = self.submit(["-f", "submit_job", "-c", f.name])
+            result['jobId'] = stdout["jobId"]
         return result
 
-    def submit_pre_job(self, conf_temperate_path, model_info, **substitutes):
-        conf = self.model_render(conf_temperate_path, model_info, **substitutes)
-        with tempfile.NamedTemporaryFile("w") as f:
-            json.dump(conf, f)
-            f.flush()
-            stdout = self.submit(["-f", "submit_job", "-c", f.name])
-        return stdout["jobId"]
-
-    def render(self, conf_temperate_path, **substitutes):
-        temp = open(conf_temperate_path).read()
-        substituted = Template(temp).substitute(**substitutes)
-        d = json.loads(substituted)
+    def render(self, conf_path, roles, model_info=None, substitute=None):
+        with open(conf_path) as f:
+            d = json.load(f)
+        if substitute is not None:
+            d = recursive_update(d, substitute)
         d['job_parameters']['work_mode'] = self._work_mode
+        d['job_parameters']['backend'] = self._backend
+        d['initiator']['party_id'] = roles["guest"][0]
+        for r in ["guest", "host", "arbiter"]:
+            if r in d['role']:
+                for idx in range(len(d['role'][r])):
+                    d['role'][r][idx] = roles[r][idx]
+        if model_info is not None:
+            d['job_parameters']['model_id'] = model_info['model_id']
+            d['job_parameters']['model_version'] = model_info['model_version']
         return d
 
-    def model_render(self, conf_temperate_path, model_info, **substitutes):
-        temp = open(conf_temperate_path).read()
-        substituted = Template(temp).substitute(**substitutes)
-        d = json.loads(substituted)
-        d['job_parameters']['work_mode'] = self._work_mode
-        d['job_parameters']['model_id'] = model_info['model_id']
-        d['job_parameters']['model_version'] = model_info['model_version']
-        return d
-
-    def await_finish(self, job_id, timeout=sys.maxsize, check_interval=3):
+    def await_finish(self, job_id, timeout=sys.maxsize, check_interval=3, task_name=None):
         deadline = time.time() + timeout
         start = time.time()
         while True:
             stdout = self.submit(["-f", "query_job", "-j", job_id])
             status = stdout["data"][0]["f_status"]
+            elapse_seconds = int(time.time() - start)
+            date = time.strftime('%Y-%m-%d %X')
+            if task_name:
+                log_msg = f"[{date}][{task_name}]{status}, elapse: {timedelta(seconds=elapse_seconds)}"
+            else:
+                log_msg = f"[{date}]{job_id} {status}, elapse: {timedelta(seconds=elapse_seconds)}"
             if (status == "running" or status == "waiting") and time.time() < deadline:
-                print(f"[{time.strftime('%Y-%m-%d %X')}]{job_id} {status}, used seconds: {int(time.time() - start)}",
-                      end="\r")
+                print(log_msg, end="\r")
                 time.sleep(check_interval)
                 continue
             else:
+                print(" " * 60, end="\r")  # clean line
+                print(log_msg)
                 return status
+
+
+def recursive_update(d, u):
+    for k, v in u.items():
+        if isinstance(v, collections.abc.Mapping):
+            d[k] = recursive_update(d.get(k, {}), v)
+        else:
+            d[k] = v
+    return d
