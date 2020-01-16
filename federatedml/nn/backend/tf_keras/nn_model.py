@@ -126,7 +126,7 @@ class KerasNNModel(NNModel):
     def __init__(self, sess, model):
         self._sess: tf.Session = sess
         self._model: tf.keras.Sequential = model
-        self._trainable_weights = {self._trim_device_str(v.name): v for v in self._model.trainable_weights}
+        self._trainable_weights = {v.name: v for v in self._model.trainable_weights}
 
         self._initialize_variables()
 
@@ -134,10 +134,6 @@ class KerasNNModel(NNModel):
         uninitialized_var_names = [bytes.decode(var) for var in self._sess.run(tf.report_uninitialized_variables())]
         uninitialized_vars = [var for var in tf.global_variables() if var.name.split(':')[0] in uninitialized_var_names]
         self._sess.run(tf.initialize_variables(uninitialized_vars))
-
-    @staticmethod
-    def _trim_device_str(name):
-        return name.split("/")[0]
 
     def get_model_weights(self) -> OrderDictWeights:
         return OrderDictWeights(self._sess.run(self._trainable_weights))
