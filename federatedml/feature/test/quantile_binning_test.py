@@ -28,20 +28,14 @@ from federatedml.util import consts
 
 bin_num = 10
 
-job_id = str(uuid.uuid1())
-session.init(job_id)
+# job_id = str(uuid.uuid1())
+# session.init(job_id, 1)
 
 
 class TestQuantileBinning(unittest.TestCase):
-    def tearDown(self):
-        try:
-            session.cleanup("*", job_id, True)
-        except EnvironmentError:
-            pass
-        try:
-            session.cleanup("*", job_id, False)
-        except EnvironmentError:
-            pass
+    def setUp(self):
+        self.job_id = str(uuid.uuid1())
+        session.init(self.job_id, 1)
 
     def test_binning_correctness(self):
         bin_obj = self._bin_obj_generator()
@@ -54,16 +48,10 @@ class TestQuantileBinning(unittest.TestCase):
             s_ps = s_ps.tolist()
             self.assertListEqual(s_ps, expect_split_points)
 
-    # def test_large_binning(self):
-    #     bin_obj = self._bin_obj_generator()
-    #     small_table = self.gen_data(100000, 5000, 2)
-    #     split_points = bin_obj.fit_split_points(small_table)
-    #     expect_split_points = list((range(1, bin_num)))
-    #     expect_split_points = [float(x) for x in expect_split_points]
-    #
-    #     for _, s_ps in split_points.items():
-    #         s_ps = s_ps.tolist()
-    #         self.assertListEqual(s_ps, expect_split_points)
+    def test_large_binning(self):
+        bin_obj = self._bin_obj_generator()
+        small_table = self.gen_data(100000, 1000, 48, use_random=True)
+        split_points = bin_obj.fit_split_points(small_table)
 
     def test_sparse_data(self):
         feature_num = 50
@@ -101,7 +89,7 @@ class TestQuantileBinning(unittest.TestCase):
         bin_obj = QuantileBinning(bin_param, abnormal_list=abnormal_list)
         return bin_obj
 
-    def gen_data(self, data_num, feature_num, partition, is_sparse=False):
+    def gen_data(self, data_num, feature_num, partition, is_sparse=False, use_random=False):
         data = []
         shift_iter = 0
         header = [str(i) for i in range(feature_num)]
@@ -113,11 +101,19 @@ class TestQuantileBinning(unittest.TestCase):
                     value = bin_num - 1
                 shift_iter += 1
             if not is_sparse:
-                inst = Instance(inst_id=data_key, features=value * np.ones(feature_num), label=data_key % 2)
+                if not use_random:
+                    features = value * np.ones(feature_num)
+                else:
+                    features = np.random.random(feature_num)
+                inst = Instance(inst_id=data_key, features=features, label=data_key % 2)
 
             else:
+                if not use_random:
+                    features = value * np.ones(feature_num)
+                else:
+                    features = np.random.random(feature_num)
                 data_index = [x for x in range(feature_num)]
-                sparse_inst = SparseVector(data_index, data=value * np.ones(feature_num), shape=10 * feature_num)
+                sparse_inst = SparseVector(data_index, data=features, shape=10 * feature_num)
                 inst = Instance(inst_id=data_key, features=sparse_inst, label=data_key % 2)
                 header = [str(i) for i in range(feature_num * 10)]
 
@@ -125,6 +121,17 @@ class TestQuantileBinning(unittest.TestCase):
         result = session.parallelize(data, include_key=True, partition=partition)
         result.schema = {'header': header}
         return result
+
+    # def tearDown(self):
+    #     session.stop()
+        # try:
+        #     session.cleanup("*", self.job_id, True)
+        # except EnvironmentError:
+        #     pass
+        # try:
+        #     session.cleanup("*", self.job_id, False)
+        # except EnvironmentError:
+        #     pass
 
 
 if __name__ == '__main__':
