@@ -33,11 +33,11 @@ GUEST = 'guest'
 HOST = 'host'
 
 # You can set up your own configuration files here
-# DSL_PATH = 'hetero_logistic_regression/test_hetero_lr_train_job_dsl.json'
-# SUBMIT_CONF_PATH = 'hetero_logistic_regression/test_hetero_lr_train_job_conf.json'
+DSL_PATH = 'hetero_logistic_regression/test_hetero_lr_train_job_dsl.json'
+SUBMIT_CONF_PATH = 'hetero_logistic_regression/test_hetero_lr_train_job_conf.json'
 
-DSL_PATH = 'homo_logistic_regression/test_homolr_train_job_dsl.json'
-SUBMIT_CONF_PATH = 'homo_logistic_regression/test_homolr_train_job_conf.json'
+# DSL_PATH = 'homo_logistic_regression/test_homolr_train_job_dsl.json'
+# SUBMIT_CONF_PATH = 'homo_logistic_regression/test_homolr_train_job_conf.json'
 
 TEST_PREDICT_CONF = HOME_DIR + '/test_predict_conf.json'
 
