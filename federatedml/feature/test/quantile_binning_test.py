@@ -28,6 +28,8 @@ from federatedml.util import consts
 
 bin_num = 10
 
+TEST_LARGE_DATA = False
+
 # job_id = str(uuid.uuid1())
 # session.init(job_id, 1)
 
@@ -49,9 +51,10 @@ class TestQuantileBinning(unittest.TestCase):
             self.assertListEqual(s_ps, expect_split_points)
 
     def test_large_binning(self):
-        bin_obj = self._bin_obj_generator()
-        small_table = self.gen_data(100000, 1000, 48, use_random=True)
-        split_points = bin_obj.fit_split_points(small_table)
+        if TEST_LARGE_DATA:
+            bin_obj = self._bin_obj_generator()
+            small_table = self.gen_data(100000, 1000, 48, use_random=True)
+            _ = bin_obj.fit_split_points(small_table)
 
     def test_sparse_data(self):
         feature_num = 50

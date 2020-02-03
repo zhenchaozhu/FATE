@@ -23,6 +23,9 @@ from arch.api import federation
 from federatedml.feature.hetero_feature_binning.hetero_binning_guest import HeteroFeatureBinningGuest
 from federatedml.feature.instance import Instance
 
+GUEST = 'guest'
+HOST = 'host'
+
 
 class TestHeteroFeatureBinning():
     def __init__(self):
@@ -51,12 +54,26 @@ class TestHeteroFeatureBinning():
 
     def _make_param_dict(self, type='fit'):
         guest_componet_param = {
-            "FeatureBinningParam": {
-                "process_method": type,
-            }
+            "local": {
+                "role": "guest",
+                "party_id": 9999
+            },
+            "role": {
+                "guest": [
+                    9999
+                ],
+                "host": [
+                    10000
+                ]
+            },
+            "process_method": type,
         }
 
+
         return guest_componet_param
+
+    # def fit_data(self):
+
 
     def test_feature_binning(self):
         binning_guest = HeteroFeatureBinningGuest()
@@ -66,10 +83,12 @@ class TestHeteroFeatureBinning():
         binning_guest.run(guest_param, self.args)
 
         result_data = binning_guest.save_data()
-        local_data = result_data.collect()
+        fit_data = result_data.collect()
         print("data in fit")
-        for k, v in local_data:
-            print("k: {}, v: {}".format(k, v.features))
+        fit_result = {}
+        for k, v in fit_data:
+            # print("k: {}, v: {}".format(k, v.features))
+            fit_result[k] = v.features
         guest_model = {self.model_name: binning_guest.export_model()}
 
         guest_args = {
@@ -88,13 +107,16 @@ class TestHeteroFeatureBinning():
         binning_guest.run(guest_param, guest_args)
 
         result_data = binning_guest.save_data()
-        local_data = result_data.collect()
+        transformed_data = result_data.collect()
         print("data in transform")
-        for k, v in local_data:
-            print("k: {}, v: {}".format(k, v.features))
+        for k, v in transformed_data:
+            fit_v: np.ndarray = fit_result.get(k)
+            # print("k: {}, v: {}, fit_v: {}".format(k, v.features, fit_v))
+            assert all(fit_v == v.features)
 
     def tearDown(self):
         self.table.destroy()
+        print("Finish testing")
 
 
 if __name__ == '__main__':
@@ -120,3 +142,4 @@ if __name__ == '__main__':
     binning_obj = TestHeteroFeatureBinning()
     # homo_obj.test_homo_lr()
     binning_obj.test_feature_binning()
+    binning_obj.tearDown()

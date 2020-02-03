@@ -51,10 +51,21 @@ class TestHeteroFeatureBinning():
 
     def _make_param_dict(self, type='fit'):
         host_componet_param = {
-            "FeatureBinningParam": {
-                "process_method": type,
-            }
+            "local": {
+                "role": "host",
+                "party_id": 10000
+            },
+            "role": {
+                "guest": [
+                    9999
+                ],
+                "host": [
+                    10000
+                ]
+            },
+            "process_method": type,
         }
+
         return host_componet_param
 
     def test_feature_binning(self):
@@ -95,6 +106,8 @@ class TestHeteroFeatureBinning():
 
     def tearDown(self):
         self.table.destroy()
+        print("Finish testing")
+
 
 
 if __name__ == '__main__':
@@ -119,3 +132,4 @@ if __name__ == '__main__':
     binning_obj = TestHeteroFeatureBinning()
     # homo_obj.test_homo_lr()
     binning_obj.test_feature_binning()
+    binning_obj.tearDown()
