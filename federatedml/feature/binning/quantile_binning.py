@@ -42,9 +42,10 @@ class QuantileBinning(Binning):
     optimizations).
     """
 
-    def __init__(self, params, abnormal_list=None):
+    def __init__(self, params, abnormal_list=None, allow_duplicate=False):
         super(QuantileBinning, self).__init__(params, abnormal_list)
         self.summary_dict = None
+        self.allow_duplicate = allow_duplicate
 
     def fit_split_points(self, data_instances):
         """
@@ -63,8 +64,8 @@ class QuantileBinning(Binning):
             e.g.
             split_points = {'x1': [0.1, 0.2, 0.3, 0.4 ...],    # The first feature
                             'x2': [1, 2, 3, 4, ...],           # The second feature
-                            ...]                         # Other features
-
+                            ...                         # Other features
+                            }
         """
         header = data_overview.get_header(data_instances)
         self._default_setting(header)
@@ -131,7 +132,10 @@ class QuantileBinning(Binning):
             split_point = []
             for percen_rate in percentile_rate:
                 s_p = summary.query(percen_rate)
-                if s_p not in split_point:
+                if not self.allow_duplicate:
+                    if s_p not in split_point:
+                        split_point.append(s_p)
+                else:
                     split_point.append(s_p)
             self.bin_results.put_col_split_points(col_name, split_point)
 
