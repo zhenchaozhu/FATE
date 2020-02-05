@@ -106,7 +106,10 @@ class QuantileBinning(Binning):
             split_point = []
             for percen_rate in percentile_rate:
                 s_p = summary.query(percen_rate)
-                if s_p not in split_point:
+                if not self.allow_duplicate:
+                    if s_p not in split_point:
+                        split_point.append(s_p)
+                else:
                     split_point.append(s_p)
             self.bin_results.put_col_split_points(col_name, split_point)
 
