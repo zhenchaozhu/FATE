@@ -187,6 +187,9 @@ class Binning(object):
 
         if split_points is None:
             split_points = self.bin_results.all_split_points
+        else:
+            for col_name, sp in split_points.items():
+                self.bin_results.put_col_split_points(col_name, sp)
 
         if is_sparse:
             f = functools.partial(self._convert_sparse_data,

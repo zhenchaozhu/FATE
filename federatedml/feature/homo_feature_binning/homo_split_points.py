@@ -20,6 +20,7 @@ from federatedml.transfer_variable.transfer_class.homo_feature_binning_transfer_
     HomoFeatureBinningTransferVariable
 from federatedml.util import consts
 from federatedml.param.feature_binning_param import FeatureBinningParam
+from federatedml.feature.binning.base_binning import Binning
 from federatedml.feature.binning.quantile_binning import QuantileBinning
 from arch.api.utils import log_utils
 import numpy as np
@@ -34,6 +35,7 @@ class HomoSplitPointCalculator(object):
         self.transfer_variable = HomoFeatureBinningTransferVariable()
         self.transfer_variable.set_flowid(flowid)
         self.bin_method = bin_method
+        self.bin_obj:Binning = None
 
     def set_flowid(self, flowid):
         self.transfer_variable.set_flowid(flowid)
@@ -82,6 +84,7 @@ class HomoSplitPointCalculator(object):
             self.transfer_variable.host_split_points.remote(split_points, suffix=suffix)
 
         agg_split_points = self.transfer_variable.agg_split_points.get(idx=0, suffix=suffix)
+        self.bin_obj = bin_obj
         return agg_split_points
 
     def _server_run(self, suffix=tuple()):
@@ -104,6 +107,12 @@ class HomoSplitPointCalculator(object):
             agg_split_points[col_name] = np.mean(col_split_points, axis=0)
         self.transfer_variable.agg_split_points.remote(agg_split_points, idx=-1, role=None, suffix=suffix)
         return agg_split_points
+
+    def convert_feature_to_bin(self, data_instances, split_points=None):
+        if self.bin_obj is None:
+            return None, None, None
+        return self.bin_obj.convert_feature_to_bin(data_instances, split_points)
+
 
 
 

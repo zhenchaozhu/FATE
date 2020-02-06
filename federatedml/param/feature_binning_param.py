@@ -152,7 +152,8 @@ class FeatureBinningParam(BaseParam):
         self.check_positive_integer(self.head_size, descr)
         self.check_decimal_float(self.error, descr)
         self.check_positive_integer(self.bin_num, descr)
-        self.check_defined_type(self.bin_indexes, descr, ['list', 'int', 'RepeatedScalarContainer', "NoneType"])
+        if self.bin_indexes != -1:
+            self.check_defined_type(self.bin_indexes, descr, ['list', 'RepeatedScalarContainer', "NoneType"])
         self.check_defined_type(self.bin_names, descr, ['list', "NoneType"])
         self.check_defined_type(self.category_indexes, descr, ['list', "NoneType"])
         self.check_defined_type(self.category_names, descr, ['list', "NoneType"])

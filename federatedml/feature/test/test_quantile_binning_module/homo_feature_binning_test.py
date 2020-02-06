@@ -28,7 +28,7 @@ from federatedml.feature.sparse_vector import SparseVector
 
 GUEST = 'guest'
 HOST = 'host'
-
+ARBITER = 'arbiter'
 host_id_list = ['10000', '10001', '10002']
 
 
@@ -65,9 +65,9 @@ class TestHomoFeatureBinning():
                 else:
                     features = np.random.random(feature_num)
                 data_index = [x for x in range(feature_num)]
-                sparse_inst = SparseVector(data_index, data=features, shape=10 * feature_num)
+                sparse_inst = SparseVector(data_index, data=features, shape=feature_num)
                 inst = Instance(inst_id=data_key, features=sparse_inst, label=data_key % 2)
-                header = [str(i) for i in range(feature_num * 10)]
+                header = [str(i) for i in range(feature_num)]
 
             data.append((data_key, inst))
         result = session.parallelize(data, include_key=True, partition=partition)
@@ -84,7 +84,7 @@ class TestHomoFeatureBinning():
         expect_agg_sp = np.mean(expect_agg_sp, axis=0)
         if self.role == GUEST:
             data_inst = self._gen_data(1000, 10, 48, expect_split_points=guest_split_points, is_sparse=is_sparse)
-        elif self.role == 'arbiter':
+        elif self.role == ARBITER:
             data_inst = None
         else:
             host_idx = host_id_list.index(self.party_id)
@@ -93,7 +93,16 @@ class TestHomoFeatureBinning():
         agg_sp = binning_obj.average_run(data_inst, bin_num=100)
         for col_name, col_agg_sp in agg_sp.items():
             assert np.all(col_agg_sp == expect_agg_sp)
-        print("is_sparse: {}, assert success".format(is_sparse))
+        print("is_sparse: {}, split_point detected success".format(is_sparse))
+        transferred_table, split_points_result, bin_sparse = binning_obj.convert_feature_to_bin(data_inst, agg_sp)
+        if self.role == ARBITER:
+            assert transferred_table == split_points_result == bin_sparse is None
+        else:
+            transferred_data = list(transferred_table.collect())[:10]
+            print("transferred_data: {}, split_points_result: {}, bin_sparse: {}".format(
+                [x[1].features for x in transferred_data], split_points_result, bin_sparse
+            ))
+
         return
 
     def tearDown(self):
@@ -106,7 +115,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
 
     parser.add_argument('-r', '--role', required=False, type=str, help="role",
-                        choices=(GUEST, HOST, 'arbiter'), default=GUEST)
+                        choices=(GUEST, HOST, ARBITER), default=GUEST)
     parser.add_argument('-pid', '--pid', required=True, type=str, help="own party id")
     parser.add_argument('-j', '--job_id', required=True, type=str, help="job_id")
 
