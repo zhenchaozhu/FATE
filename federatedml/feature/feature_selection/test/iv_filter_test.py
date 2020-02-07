@@ -70,18 +70,14 @@ class IvFilterTest(BaseFilterTest):
             filter_obj = iv_value_select_filter.Host(iv_param)
 
         filter_obj.set_selection_properties(selection_properties)
-
         binning_test_obj = hetero_feature_binning_test.TestHeteroFeatureBinning(self.role,
                                                                                 self.guest_id, self.host_id)
-        # binning_obj, _ = binning_test_obj.test_feature_binning()
-        # binning_test_obj.tearDown()
-        # filter_obj.set_binning_obj(binning_obj)
         return filter_obj, binning_test_obj
 
     def test_iv_value_filter(self):
         iv_param = IVValueSelectionParam(value_threshold=0.1)
         selection_properties = SelectionProperties()
-        data_instances = self._gen_data(100)
+        data_instances = self._gen_fix_data(100)
 
         selection_properties.set_header(data_instances.schema['header'])
         selection_properties.set_select_all_cols()
@@ -99,7 +95,15 @@ class IvFilterTest(BaseFilterTest):
         result_selection_properties = filter_obj.selection_properties
         assert result_selection_properties.left_col_names == ['d1', 'd3']
 
-    def _gen_data(self, data_num=100):
+    def test_iv_percentile_filter(self):
+        iv_param = IVValueSelectionParam(value_threshold=0.1)
+        selection_properties = SelectionProperties()
+        data_instances = self._gen_data(100)
+
+        selection_properties.set_header(data_instances.schema['header'])
+        selection_properties.set_select_all_cols()
+
+    def _gen_fix_data(self, data_num=100):
         bin_nums = 10
         label = [1] * (data_num // 2) + [0] * (data_num // 2)
         data_nums_in_bin = data_num // bin_nums
@@ -126,6 +130,27 @@ class IvFilterTest(BaseFilterTest):
         result.schema = {'header': ['d1', 'd2', 'd3']}
         self.table_list.append(result)
         return result
+
+    def _gen_data(self, data_event_counts):
+        """
+        Generate data according to provided data event count
+        Parameters
+        ----------
+        data_event_counts : list of list
+            each element indicate event count and non-event count distribution
+            [  [(event_sum, non-event_sum), (same sum in second_bin), (in third bin) ...],
+             [distribution in second feature],
+             ...
+             ]
+        """
+        total_ones = 0
+        total_zeros = 0
+        for event_sum, non_event_sum in data_event_counts[0]:
+            total_ones += event_sum
+            total_zeros += non_event_sum
+        data_num = total_ones + total_zeros
+        feature_num = len(data_event_counts)
+
 
     @staticmethod
     def iv_cals(data_event_count, adjustment_factor=0.5):
