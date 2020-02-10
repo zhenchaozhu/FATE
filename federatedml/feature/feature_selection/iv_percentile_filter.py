@@ -98,7 +98,7 @@ class Guest(IVPercentileFilter):
                     if col_name in host_select_param.select_col_names:
                         total_values.append(col_results.iv)
         sorted_value = sorted(total_values, reverse=True)
-        thres_idx = int(math.floor(self.percentile_threshold * len(sorted_value) - consts.FLOAT_ZERO))
+        thres_idx = int(math.floor(self.percentile_threshold * len(sorted_value)))
         return sorted_value[thres_idx]
 
     def get_meta_obj(self, meta_dicts):

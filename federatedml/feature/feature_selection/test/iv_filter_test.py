@@ -16,26 +16,27 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-from arch.api import session
-from arch.api import federation
 import argparse
+import math
+
+import numpy as np
+
+from arch.api import federation
+from arch.api import session
 from federatedml.feature.feature_selection import iv_value_select_filter, iv_percentile_filter
-from federatedml.param.feature_selection_param import IVValueSelectionParam, IVPercentileSelectionParam
 from federatedml.feature.feature_selection.selection_properties import SelectionProperties
 from federatedml.feature.feature_selection.test.feature_selection_test import BaseFilterTest
-from federatedml.feature.test.test_quantile_binning_module import hetero_feature_binning_test
-import math
 from federatedml.feature.instance import Instance
+from federatedml.feature.test.test_quantile_binning_module import hetero_feature_binning_test
+from federatedml.param.feature_selection_param import IVValueSelectionParam, IVPercentileSelectionParam
 from federatedml.transfer_variable.transfer_class.hetero_feature_selection_transfer_variable import \
     HeteroFeatureSelectionTransferVariable
-import numpy as np
 
 GUEST = 'guest'
 HOST = 'host'
 
 
 class IvFilterTest(BaseFilterTest):
-
     def __init__(self, role):
         super().__init__()
         self.role = role
@@ -63,45 +64,90 @@ class IvFilterTest(BaseFilterTest):
                             }
                         })
 
-    def setup_iv_value_obj(self, iv_param: IVValueSelectionParam, selection_properties: SelectionProperties):
-        if self.role == GUEST:
-            filter_obj = iv_value_select_filter.Guest(iv_param)
+    def setup_iv_value_obj(self, iv_param: IVValueSelectionParam or IVPercentileSelectionParam,
+                           selection_properties: SelectionProperties,
+                           obj_type='iv_value'):
+        if obj_type == 'iv_value':
+            my_filter = iv_value_select_filter
         else:
-            filter_obj = iv_value_select_filter.Host(iv_param)
+            my_filter = iv_percentile_filter
+
+        if self.role == GUEST:
+            filter_obj = my_filter.Guest(iv_param)
+        else:
+            filter_obj = my_filter.Host(iv_param)
 
         filter_obj.set_selection_properties(selection_properties)
-        binning_test_obj = hetero_feature_binning_test.TestHeteroFeatureBinning(self.role,
-                                                                                self.guest_id, self.host_id)
+        if self.binning_test_obj is None:
+            binning_test_obj = hetero_feature_binning_test.TestHeteroFeatureBinning(self.role,
+                                                                                    self.guest_id, self.host_id)
+            self.binning_test_obj = binning_test_obj
+        else:
+            binning_test_obj = self.binning_test_obj
         return filter_obj, binning_test_obj
 
     def test_iv_value_filter(self):
         iv_param = IVValueSelectionParam(value_threshold=0.1)
         selection_properties = SelectionProperties()
-        data_instances = self._gen_fix_data(100)
+        # data_instances = self._gen_fix_data(1000)
+        data_event_counts = [[(10, 90), (30, 70), (50, 50), (70, 30), (90, 10)],
+                             [(20, 80), (40, 60), (50, 50), (60, 40), (80, 20)],
+                             [(45, 55), (47, 53), (50, 50), (53, 47), (45, 55)],
+                             [(50, 50), (50, 50), (50, 50), (50, 50), (50, 50)]]
+        data_instances = self._gen_data(data_event_counts)
 
         selection_properties.set_header(data_instances.schema['header'])
         selection_properties.set_select_all_cols()
+        selection_properties.set_last_left_col_indexes([x for x in range(len(data_event_counts))])
 
         filter_obj, binning_test_obj = self.setup_iv_value_obj(iv_param, selection_properties)
         table_args = {"data": {'HeteroFeatureBinning': {"data": data_instances}}}
         binning_obj = binning_test_obj.run_data(table_args, 'fit')
+        # for col_name, col_result in binning_obj.binning_obj.bin_results.all_cols_results.items():
+        #     print("col_name: {}, binning_obj iv: {}".format(col_name, col_result.iv))
         transfer_variable = HeteroFeatureSelectionTransferVariable()
-        transfer_variable.set_flowid(self.job_id)
+        transfer_variable.set_flowid(self.job_id + 'iv_value')
 
         filter_obj.set_binning_obj(binning_obj)
         filter_obj.set_transfer_variable(transfer_variable)
         filter_obj.fit(data_instances, suffix='iv_value')
 
         result_selection_properties = filter_obj.selection_properties
-        assert result_selection_properties.left_col_names == ['d1', 'd3']
+        # for fid, d_event_count in enumerate(data_event_counts):
+        #     print("fid: {}, iv: {}".format(fid, self.iv_cals(d_event_count)))
+        """fid: 0, iv: 1.6773590448190858
+        fid: 1, iv: 0.7302957106348537
+        fid: 2, iv: 0.015423798428087228
+        fid: 3, iv: 0.0
+        """
+        assert result_selection_properties.left_col_names == ['d0', 'd1']
 
     def test_iv_percentile_filter(self):
-        iv_param = IVValueSelectionParam(value_threshold=0.1)
+        iv_param = IVPercentileSelectionParam(percentile_threshold=0.8)
         selection_properties = SelectionProperties()
-        data_instances = self._gen_data(100)
+        data_event_counts = [[(10, 90), (30, 70), (50, 50), (70, 30), (90, 10)],
+                             [(20, 80), (40, 60), (50, 50), (60, 40), (80, 20)],
+                             [(45, 55), (47, 53), (50, 50), (53, 47), (45, 55)],
+                             [(50, 50), (50, 50), (50, 50), (50, 50), (50, 50)]]
+        data_instances = self._gen_data(data_event_counts)
+        filter_obj, binning_test_obj = self.setup_iv_value_obj(iv_param, selection_properties, obj_type='iv_percentile')
+        table_args = {"data": {'HeteroFeatureBinning': {"data": data_instances}}}
+        binning_obj = binning_test_obj.run_data(table_args, 'fit')
 
         selection_properties.set_header(data_instances.schema['header'])
         selection_properties.set_select_all_cols()
+        filter_obj.set_binning_obj(binning_obj)
+
+        transfer_variable = HeteroFeatureSelectionTransferVariable()
+        transfer_variable.set_flowid(self.job_id + 'iv_percentile')
+
+        filter_obj.set_transfer_variable(transfer_variable)
+        filter_obj.set_selection_properties(selection_properties)
+
+        filter_obj.fit(data_instances, suffix='iv_percentile')
+        result_selection_properties = filter_obj.selection_properties
+
+        print("result_selection_properties: {}".format(result_selection_properties.left_col_names))
 
     def _gen_fix_data(self, data_num=100):
         bin_nums = 10
@@ -151,6 +197,34 @@ class IvFilterTest(BaseFilterTest):
         data_num = total_ones + total_zeros
         feature_num = len(data_event_counts)
 
+        features = []
+        for event_counts in data_event_counts:
+            # print('event_counts: {}, iv: {}'.format(event_counts, self.iv_cals(event_counts)))
+            k = len(event_counts)
+            values = []
+            for idx, (_, non_event_sum) in enumerate(event_counts):
+                values.extend([idx - k // 2] * non_event_sum)
+            for idx, (event_sum, _) in enumerate(event_counts):
+                values.extend([idx - k // 2] * event_sum)
+            features.append(values)
+        # print("before transpose: {}".format(features))
+        features = np.transpose(np.array(features))
+        # print("after transpose: {}".format(features))
+
+        assert features.shape[0] == data_num
+
+        data_insts = []
+        for data_idx in range(data_num):
+            if data_idx < total_zeros:
+                label = 0
+            else:
+                label = 1
+            inst = Instance(inst_id=data_idx, features=features[data_idx], label=label)
+            data_insts.append((data_idx, inst))
+        result = session.parallelize(data_insts, include_key=True, partition=48)
+        result.schema = {'header': ['d' + str(x) for x in range(feature_num)]}
+        self.table_list.append(result)
+        return result
 
     @staticmethod
     def iv_cals(data_event_count, adjustment_factor=0.5):
@@ -194,6 +268,5 @@ if __name__ == '__main__':
     test_obj = IvFilterTest(role)
     test_obj.setup_session(job_id, guest_id, host_id)
     test_obj.test_iv_value_filter()
+    test_obj.test_iv_percentile_filter()
     test_obj.tearDown()
-
-

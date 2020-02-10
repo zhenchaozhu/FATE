@@ -15,3 +15,9 @@
 #  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
+
+from federatedml.feature.feature_selection.test.feature_selection_test import BaseFilterTest
+from unittest import TestCase
+
+class CoefOfVarFilter(BaseFilterTest, TestCase):
+    pass

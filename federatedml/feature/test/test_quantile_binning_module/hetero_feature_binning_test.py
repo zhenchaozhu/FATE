@@ -42,6 +42,7 @@ class TestHeteroFeatureBinning():
         # self.args = {"data": {self.model_name: {"data": table}}}
         self.args = None
         self.table_list = []
+        self.binning_obj = None
 
     def _gen_data(self, data_num, feature_num, partition, expect_ratio, is_sparse=False, use_random=False):
         data = []
@@ -140,6 +141,8 @@ class TestHeteroFeatureBinning():
         return guest_componet_param
 
     def run_data(self, table_args, run_type='fit'):
+        if self.binning_obj is not None:
+            return self.binning_obj
         if self.role == GUEST:
             binning_obj = HeteroFeatureBinningGuest()
         else:
@@ -147,6 +150,7 @@ class TestHeteroFeatureBinning():
         guest_param = self._make_param_dict(run_type)
 
         binning_obj.run(guest_param, table_args)
+        self.binning_obj = binning_obj
         return binning_obj
 
     def test_feature_binning(self):
