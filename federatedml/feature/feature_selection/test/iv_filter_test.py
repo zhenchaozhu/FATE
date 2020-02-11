@@ -23,11 +23,11 @@ import numpy as np
 
 from arch.api import federation
 from arch.api import session
+from federatedml.feature.binning.test.test_quantile_binning_module import hetero_feature_binning_test
 from federatedml.feature.feature_selection import iv_value_select_filter, iv_percentile_filter
 from federatedml.feature.feature_selection.selection_properties import SelectionProperties
 from federatedml.feature.feature_selection.test.feature_selection_test import BaseFilterTest
 from federatedml.feature.instance import Instance
-from federatedml.feature.test.test_quantile_binning_module import hetero_feature_binning_test
 from federatedml.param.feature_selection_param import IVValueSelectionParam, IVPercentileSelectionParam
 from federatedml.transfer_variable.transfer_class.hetero_feature_selection_transfer_variable import \
     HeteroFeatureSelectionTransferVariable
