@@ -40,6 +40,17 @@ class BinColResults(object):
                 event_rate = event_rate_array[idx]
                 iv += (non_event_rate - event_rate) * woe
         self.iv = iv
+        self._encoded_bin_names = None
+
+    @property
+    def encoded_bin_names(self):
+        if self._encoded_bin_names is None:
+            return [str(i) for i in range(len(self.woe_array))]
+        return self._encoded_bin_names
+
+    @encoded_bin_names.setter
+    def encoded_bin_names(self, x):
+        self._encoded_bin_names = x
 
     def set_split_points(self, split_points):
         self.split_points = split_points
@@ -90,7 +101,8 @@ class BinColResults(object):
                                                    split_points=self.split_points,
                                                    iv=self.iv,
                                                    is_woe_monotonic=self.is_woe_monotonic,
-                                                   bin_nums=self.bin_nums)
+                                                   bin_nums=self.bin_nums,
+                                                   encoded_bin_name=self.encoded_bin_names)
         return result
 
 
