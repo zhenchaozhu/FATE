@@ -24,6 +24,7 @@ from federatedml.feature.binning.bin_inner_param import BinInnerParam
 from federatedml.feature.binning.bin_result import BinColResults, BinResults
 from federatedml.feature.sparse_vector import SparseVector
 from federatedml.statistic import data_overview
+import random
 from federatedml.util import consts
 # from federatedml.statistic import statics
 
@@ -536,6 +537,34 @@ class Binning(object):
 
         return result_sum
 
+    def shuffle_static_counts(self, statistic_counts):
+        """
+        Shuffle bin orders, and stored orders in self.bin_results
+
+        Parameters
+        ----------
+        statistic_counts :  dict.
+            It is like:
+                {'x1': [[event_count, non_event_count], [event_count, non_event_count] ... ],
+                 'x2': [[event_count, non_event_count], [event_count, non_event_count] ... ],
+                 ...
+                }
+
+        Returns
+        -------
+        Shuffled result
+        """
+        result = {}
+        for col_name, count_sum in statistic_counts.items():
+            this_bin_result = self.bin_results.all_cols_results.get(col_name, BinColResults())
+            shuffled_index = [x for x in range(len(count_sum))]
+            random.shuffle(shuffled_index)
+            result[col_name] = [count_sum[i] for i in shuffled_index]
+            this_bin_result.bin_anonymous = ["bin_" + str(i) for i in shuffled_index]
+            self.bin_results.all_cols_results[col_name] = this_bin_result
+        return result
+
+
     @staticmethod
     def aggregate_partition_label(sum1, sum2):
         """
@@ -543,14 +572,14 @@ class Binning(object):
 
         Parameters
         ----------
-        sum1 :  DTable.
+        sum1 :  dict.
             It is like:
                 {'x1': [[event_count, non_event_count], [event_count, non_event_count] ... ],
                  'x2': [[event_count, non_event_count], [event_count, non_event_count] ... ],
                  ...
                 }
 
-        sum2 : DTable
+        sum2 : dict
             Same as sum1
         Returns
         -------

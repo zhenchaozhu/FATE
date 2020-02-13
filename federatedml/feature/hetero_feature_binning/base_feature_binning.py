@@ -17,7 +17,7 @@
 #  limitations under the License.
 
 from arch.api.utils import log_utils
-from federatedml.feature.binning.base_binning import HostBaseBinning
+from federatedml.feature.binning.base_binning import HostBaseBinning, Binning
 from federatedml.feature.binning.bin_inner_param import BinInnerParam
 from federatedml.feature.binning.bucket_binning import BucketBinning
 from federatedml.feature.binning.quantile_binning import QuantileBinning
@@ -45,7 +45,7 @@ class BaseHeteroFeatureBinning(ModelBase):
     def __init__(self):
         super(BaseHeteroFeatureBinning, self).__init__()
         self.transfer_variable = HeteroFeatureBinningTransferVariable()
-        self.binning_obj = None
+        self.binning_obj: Binning = None
         self.header = None
         self.schema = None
         self.host_results = []
@@ -124,6 +124,7 @@ class BaseHeteroFeatureBinning(ModelBase):
 
     def _get_param(self):
         binning_result_obj = self.binning_obj.bin_results.generated_pb()
+        # binning_result_obj = self.bin_results.generated_pb()
         host_results = [x.bin_results.generated_pb() for x in self.host_results]
 
         result_obj = feature_binning_param_pb2.FeatureBinningParam(binning_result=binning_result_obj,
