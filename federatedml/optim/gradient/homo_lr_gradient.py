@@ -18,6 +18,7 @@ import numpy as np
 
 from arch.api.utils import log_utils
 from federatedml.util import fate_operator
+from federatedml.optim import activation
 
 LOGGER = log_utils.getLogger()
 
@@ -42,7 +43,8 @@ class LogisticGradient(object):
     @staticmethod
     def compute_loss(values, coef, intercept):
         X, Y = load_data(values)
-        tot_loss = np.log(1 + np.exp(np.multiply(-Y.transpose(), X.dot(coef) + intercept))).sum()
+        ywx = np.multiply(-Y.transpose(), X.dot(coef) + intercept)
+        tot_loss = -activation.log_logistic(-ywx).sum()
         return tot_loss
 
     @staticmethod

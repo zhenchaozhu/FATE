@@ -59,8 +59,8 @@ class HeteroFeatureBinningHost(BaseHeteroFeatureBinning):
 
         encrypted_bin_sum = self.__static_encrypted_bin_label(data_bin_table, encrypted_label_table,
                                                               self.bin_inner_param.bin_cols_map, split_points)
-        encrypted_bin_sum = self.bin_inner_param.encode_col_name_dict(encrypted_bin_sum)
         encrypted_bin_sum = self.binning_obj.shuffle_static_counts(encrypted_bin_sum)
+        encrypted_bin_sum = self.bin_inner_param.encode_col_name_dict(encrypted_bin_sum)
         self.transfer_variable.encrypted_bin_sum.remote(encrypted_bin_sum,
                                                         role=consts.GUEST,
                                                         idx=0)

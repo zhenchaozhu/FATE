@@ -428,9 +428,11 @@ class Binning(object):
             non_event_total += non_event_sum
 
         if event_total == 0:
-            raise ValueError("NO event label in target data")
+            # raise ValueError("NO event label in target data")
+            event_total = 1
         if non_event_total == 0:
-            raise ValueError("NO non-event label in target data")
+            # raise ValueError("NO non-event label in target data")
+            non_event_total = 1
 
         iv = 0
         event_count_array = []
