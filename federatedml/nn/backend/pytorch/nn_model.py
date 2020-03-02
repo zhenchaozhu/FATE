@@ -17,27 +17,61 @@ from federatedml.nn.homo_nn.nn_model import NNModel, DataConverter
 Logger = log_utils.getLogger()
 
 
-def layers(layer, config):
-    if layer == "Linear":
-        return torch.nn.Linear(config[0], config[1])
-    if layer == "Relu":
-        return torch.nn.ReLU()
-
+def layers(layer, config, type):
+    if type == "cv":
+       if layer == "Conv2d":
+           return torch.nn.Conv2d()
+       if layer == "MaxPool2d":
+           return torch.nn.MaxPool2d()
+       if layer == "AvgPool2d":
+           return torch.nn.AvgPool2d()
+    elif type == "nlp":
+        if layer == "LSTM":
+            return torch.nn.LSTM()
+        if layer == "RNN":
+            return torch.nn.RNN()
+    elif type == "activate":
+        if layer == "Sigmoid":
+            return torch.nn.Sigmoid()
+        if layer == "Relu":
+            return torch.nn.ReLU()
+        if layer == "LeakyReLU":
+            return torch.nn.LeakyReLU()
+        if layer == "Tanh":
+            return torch.nn.Tanh()
+    else:
+        if layer == "Linear":
+            return torch.nn.Linear(config[0], config[1])
+        if layer == "BatchNorm2d":
+            return torch.nn.BatchNorm2d()
+        if layer == "dropout":
+            return torch.nn.Dropout()
 
 def build_pytorch(nn_define, optimizer, loss):
     model = torch.nn.Sequential()
     for config in nn_define:
-        layer = layers(config.get("layer"), config.get("config"))
+        layer = layers(config.get("layer"), config.get("config"), config.get("type"))
         model.add_module(config.get("name"), layer)
     return PytorchNNModel(model, optimizer, loss)
 
 
 def build_loss_fn(loss):
-    if loss == "categorical_crossentropy":
-        return torch.nn.MSELoss()
-    else:
+    if loss == "CrossEntropyLoss":
         return torch.nn.CrossEntropyLoss()
-
+    elif loss == "MSELoss":
+        return torch.nn.MSELoss()
+    elif loss == "BCELoss":
+        return torch.nn.BCELoss()
+    elif loss == "BCEWithLogitsLoss":
+        return torch.nn.BCEWithLogitsLoss()
+    elif loss == "NLLLoss":
+        return torch.nn.NLLLoss()
+    elif loss == "L1Loss":
+        return torch.nn.L1Loss()
+    elif loss == "SmoothL1Loss":
+        return torch.nn.SmoothL1Loss()
+    else:
+        print("loss function not support!")
 
 def build_optimzer(optim, model):
     if optim.optimizer == "Adam":
