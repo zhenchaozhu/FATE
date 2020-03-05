@@ -48,11 +48,12 @@ def get_class_weight(kv_iterator):
 
     return class_dict
 
+def replace_weight(data_instance, class_weight):
+    data_instance.weight = class_weight.get(data_instance.label, 1)
+    return data_instance
+
 def compute_sample_weight(class_weight, data_instances):
-    #@TODO: add weight
-    if class_weight is None:
-        return data_instances.mapValues()
-    return
+    return data_instances.mapValues(lambda v: replace_weight(v, class_weight))
 
 def transform(data_instances, class_weight='balanced'):
     if class_weight == 'balanced':
@@ -65,4 +66,4 @@ def compute_weight_array(data_instances, class_weight='balanced'):
     elif class_weight == 'balanced':
         class_weight = compute_class_weight(data_instances)
     weight_inst = data_instances.mapValues(lambda v: class_weight.get(v.label, 1))
-    return np.array(list(weight_inst.collect()))
+    return np.array([v[1] for v in list(weight_inst.collect())])
