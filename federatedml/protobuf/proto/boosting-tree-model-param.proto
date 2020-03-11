@@ -19,6 +19,7 @@ message DecisionTreeModelParam {
     repeated NodeParam tree_ = 1;
     map<int32, double> split_maskdict = 2;
     map<int32, int32> missing_dir_maskdict = 3;
+    repeated string node_plan = 4;
 }
 
 message FeatureImportanceInfo {
@@ -37,5 +38,6 @@ message BoostingTreeModelParam {
     repeated string classes_ = 7;
 	repeated FeatureImportanceInfo feature_importances = 8;
 	map<int32, string> feature_name_fid_mapping = 9;
+    repeated string tree_plan = 10;
 }
 

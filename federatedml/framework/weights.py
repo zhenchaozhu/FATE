@@ -272,7 +272,11 @@ class NumpyWeights(Weights):
     def axpy(self, a, y: 'NumpyWeights'):
         size = self._weights.size
         view = self._weights.view().reshape(size)
-        view_other = y._weights.view().reshpae(size)
+
+        # TODO why error here??
+        view_other = y._weights.view()
+        view_other = view_other.reshape(size)
         for i in range(size):
             view[i] += a * view_other[i]
         return self
+

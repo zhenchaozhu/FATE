@@ -167,11 +167,9 @@ class Evaluation(ModelBase):
                         consts.REGRESSION: self.regression_support_func}
 
         self.round_num = 6
-	
-	# record name of train and validate dataset
+
         self.validate_key = set()
         self.train_key = set()
-
         self.validate_metric = {}
         self.train_metric = {}
 

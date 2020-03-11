@@ -17,8 +17,9 @@
 #  limitations under the License.
 #
 from arch.api.utils import log_utils
-from federatedml.param.base_param import BaseParam
 from federatedml.util import consts
+from federatedml.param.base_param import BaseParam
+
 
 LOGGER = log_utils.getLogger()
 
@@ -61,6 +62,7 @@ class EncryptParam(BaseParam):
                 raise ValueError(
                     "encrypt_param's method {} not supported".format(user_input))
 
+
         if type(self.key_length).__name__ != "int":
             raise ValueError(
                 "encrypt_param's key_length {} not supported, should be int type".format(self.key_length))
@@ -70,3 +72,5 @@ class EncryptParam(BaseParam):
 
         LOGGER.debug("Finish encrypt parameter check!")
         return True
+
+

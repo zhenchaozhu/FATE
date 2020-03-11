@@ -44,6 +44,7 @@ class ModelBase(object):
         param = param_extracter.parse_param_from_config(self.model_param, component_parameters)
         param.check()
         self.role = self.component_properties.parse_component_param(component_parameters, param).role
+        LOGGER.debug('param type is {}'.format(type(param)))
         self._init_model(param)
         return param
 

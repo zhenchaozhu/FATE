@@ -30,7 +30,6 @@ from federatedml.transfer_variable.transfer_class.validation_strategy_transfer_v
 
 LOGGER = log_utils.getLogger()
 
-
 class ValidationStrategy(object):
     """
     This module is used for evaluating the performance of model during training process.
@@ -54,26 +53,15 @@ class ValidationStrategy(object):
                 if validate_data not equal to None, and judge need to validate data according to validation_freqs,
                 validate data will be used for evaluating
     """
-    def __init__(self, role=None, mode=None, validation_freqs=None, early_stopping_rounds=None):
-
+    def __init__(self, role=None, mode=None, validation_freqs=None,):
         self.validation_freqs = validation_freqs
         self.role = role
         self.mode = mode
         self.flowid = ''
         self.train_data = None
         self.validate_data = None
-        self.sync_status = False
-        self.early_stopping_rounds = early_stopping_rounds
 
-        if early_stopping_rounds is not None:
-            self.sync_status = True
-            # self.validation_freqs = 1
-            LOGGER.debug("early stopping round is {}".format(self.early_stopping_rounds))
-
-        self.cur_best_model = None
-        self.training_export_mode = False
         self.performance_recorder = PerformanceRecorder()
-        self.transfer_inst = ValidationStrategyVariable()
 
         LOGGER.debug("end to init validation_strategy, freqs is {}".format(self.validation_freqs))
 
@@ -82,8 +70,6 @@ class ValidationStrategy(object):
 
     def set_validate_data(self, validate_data):
         self.validate_data = validate_data
-        if self.early_stopping_rounds and self.validate_data is None:
-            raise ValueError('validate data is needed when early stopping is enabled')
 
     def set_flowid(self, flowid):
         self.flowid = flowid
@@ -98,12 +84,10 @@ class ValidationStrategy(object):
 
         return epoch in self.validation_freqs
 
-    @staticmethod
-    def generate_flowid(prefix, epoch, keywords="iteration", data_type="train"):
+    def generate_flowid(self, prefix, epoch, keywords="iteration", data_type="train"):
         return "_".join([prefix, keywords, str(epoch), data_type])
 
-    @staticmethod
-    def make_data_set_name(need_cv, model_flowid, epoch):
+    def make_data_set_name(self, need_cv, model_flowid, epoch):
         data_iteration_name = "_".join(["iteration", str(epoch)])
         if not need_cv:
             return data_iteration_name
@@ -111,53 +95,46 @@ class ValidationStrategy(object):
         cv_fold = "_".join(["fold", model_flowid.split(".", -1)[-1]])
         return ".".join([cv_fold, data_iteration_name])
 
-    def is_best_performance_updated(self, use_first_metric_only=False):
+    def get_best_performance(self):
+        """
+        Returns return dict
+        -------
+        """
+        return self.performance_recorder.cur_best_performance
+
+    def get_no_improvement_round(self):
+        """
+        Returns return dict which records no_improvement round of used metrics
+        -------
+        """
+        return self.performance_recorder.no_improvement_round
+
+    def is_best_performance_updated(self):
+        """
+        check if the validation performance has improved
+        Returns bool
+        -------
+        """
         if len(self.performance_recorder.no_improvement_round.items()) == 0:
             return False
         for metric, no_improve_val in self.performance_recorder.no_improvement_round.items():
-            if no_improve_val != 0:
-                return False
-            if use_first_metric_only:
-                break
-        return True
+            if no_improve_val == 0:
+                return True
+        return False
 
-    def check_early_stopping(self,):
+    def check_early_stopping(self, early_stopping_round: int):
         """
         check if satisfy early_stopping_round
         Returns bool
         """
-        LOGGER.info('checking early stopping')
+        LOGGER.info('check early stopping')
         no_improvement_dict = self.performance_recorder.no_improvement_round
         for metric in no_improvement_dict:
-            if no_improvement_dict[metric] >= self.early_stopping_rounds:
+            if no_improvement_dict[metric] >= early_stopping_round:
                 return True
         return False
 
-    def sync_performance_recorder(self, epoch):
-        """
-        sync synchronize self.performance_recorder
-        """
-        if self.mode == consts.HETERO and self.role == consts.GUEST:
-            self.transfer_inst.validation_status.remote(self.performance_recorder, idx=-1, suffix=(epoch,))
-
-        elif self.mode == consts.HETERO:
-            self.performance_recorder = self.transfer_inst.validation_status.get(idx=-1, suffix=(epoch,))[0]
-
-    def need_stop(self):
-        return False if not self.early_stopping_rounds else self.check_early_stopping()
-
-    def has_saved_best_model(self):
-        return (self.early_stopping_rounds is not None) and (self.cur_best_model is not None) and \
-               (not self.training_export_mode)
-
-    def export_best_model(self):
-        if self.has_saved_best_model():
-            return self.cur_best_model
-        else:
-            return None
-
     def evaluate(self, predicts, model, epoch):
-
         evaluate_param = model.get_metrics_param()
         eval_obj = Evaluation()
         LOGGER.debug("evaluate type is {}".format(evaluate_param.eval_type))
@@ -165,6 +142,7 @@ class ValidationStrategy(object):
         eval_obj.set_tracker(model.tracker)
         data_set_name = self.make_data_set_name(model.need_cv, model.flowid,  epoch)
         eval_data = {data_set_name: predicts}
+
         eval_result_dict = eval_obj.fit(eval_data, return_result=True)
         eval_obj.save_data()
         LOGGER.debug("end to eval")
@@ -177,7 +155,6 @@ class ValidationStrategy(object):
 
         LOGGER.debug("start to evaluate data {}".format(data_type))
         model_flowid = model.flowid
-        # model_flowid = ".".join(model.flowid.split(".", -1)[1:])
         flowid = self.generate_flowid(model_flowid, epoch, "iteration", data_type)
         model.set_flowid(flowid)
         predicts = model.predict(data)
@@ -193,7 +170,6 @@ class ValidationStrategy(object):
         return predicts
 
     def validate(self, model, epoch):
-
         LOGGER.debug("begin to check validate status, need_run_validation is {}".format(self.need_run_validation(epoch)))
         if not self.need_run_validation(epoch):
             return
@@ -203,32 +179,20 @@ class ValidationStrategy(object):
 
         train_predicts = self.evaluate_data(model, epoch, self.train_data, "train")
         validate_predicts = self.evaluate_data(model, epoch, self.validate_data, "validate")
-
-        if train_predicts is not None or validate_predicts is not None:
-
+        if train_predicts is None and validate_predicts is None:
+            return
+        else:
+            # LOGGER.debug("train_predicts data is {}".format(list(train_predicts.collect())))
             predicts = train_predicts
             if validate_predicts:
                 predicts = predicts.union(validate_predicts)
 
             eval_result_dict = self.evaluate(predicts, model, epoch)
-            LOGGER.debug('showing eval_result_dict here')
-            LOGGER.debug(eval_result_dict)
-
+            LOGGER.debug('eval dict is {}'.format(eval_result_dict))
             self.performance_recorder.update(eval_result_dict)
 
-        if self.sync_status:
-            self.sync_performance_recorder(epoch)
-            LOGGER.debug('{} shows cur performances'.format(self.role))
+            LOGGER.debug('showing cur performances')
             LOGGER.debug(self.performance_recorder.cur_best_performance)
             LOGGER.debug(self.performance_recorder.no_improvement_round)
-
-        if self.early_stopping_rounds and self.is_best_performance_updated():
-            self.training_export_mode = True
-            self.cur_best_model = model.export_model()
-            self.training_export_mode = False
-            LOGGER.debug('cur best model saved')
-
-
-
 
 

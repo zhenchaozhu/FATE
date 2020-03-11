@@ -1,0 +1,94 @@
+{
+   "HomoDecisionTreeTransferVariable": {
+     "best_split_points": {
+       "src": "arbiter",
+       "dst": [
+         "guest","host"
+       ]
+     },
+     "node_sample_num": {
+       "src": ["guest","host"],
+       "dst": [
+         "arbiter"
+       ]
+     },
+     "cur_layer_node_num": {
+        "src": ["guest","host"],
+        "dst": [
+          "arbiter"
+        ]
+     },
+     "guest_model": {
+      "src": "guest",
+      "dst": ["arbiter"]
+    },
+    "guest_loss": {
+      "src": "guest",
+      "dst": ["arbiter"]
+    },
+    "guest_uuid": {
+       "src": "guest",
+       "dst": ["arbiter"]
+    },
+    "host_uuid": {
+      "src": "host",
+      "dst": [
+        "arbiter"
+      ]
+    },
+    "host_loss": {
+      "src": "host",
+      "dst": [
+        "arbiter"
+      ]
+    },
+    "uuid_conflict_flag": {
+      "src": "arbiter",
+      "dst": [
+        "guest",
+        "host"
+      ]
+    },
+    "dh_pubkey": {
+      "src": "arbiter",
+      "dst": [
+        "guest",
+        "host"
+      ]
+    },
+    "dh_ciphertext_host": {
+      "src": "host",
+      "dst": [
+        "arbiter"
+      ]
+    },
+    "dh_ciphertext_guest": {
+      "src": "guest",
+      "dst": [
+        "arbiter"
+      ]
+    },
+    "dh_ciphertext_bc": {
+      "src": "arbiter",
+      "dst": [
+        "guest", "host"
+      ]
+    },
+    "host_model": {
+      "src": "host",
+      "dst": [
+        "arbiter"
+      ]
+    },
+    "aggregated_model": {
+      "src" : "arbiter",
+      "dst": [
+        "guest", "host"
+      ]
+    },
+    "is_converge": {
+      "src": "arbiter",
+      "dst": ["guest","host"]
+    }
+   }
+}

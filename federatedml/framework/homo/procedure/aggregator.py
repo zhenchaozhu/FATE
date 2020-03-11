@@ -89,6 +89,7 @@ class Arbiter(object):
         for loss in losses:
             total_loss += loss.unboxed
             total_degree += loss.get_degree(1.0)
+        # LOGGER.debug('total degree is {}'.format(total_degree))
         return total_loss / total_degree
 
     def send_converge_status(self, converge_func: types.FunctionType, converge_args, suffix=tuple()):

@@ -17,12 +17,10 @@
 from collections import Iterable
 
 import numpy as np
-from scipy.sparse import csr_matrix
 
-from arch.api.utils import log_utils
 from federatedml.feature.instance import Instance
-from federatedml.feature.sparse_vector import SparseVector
 from federatedml.secureprotol.fate_paillier import PaillierEncryptedNumber
+from arch.api.utils import log_utils
 
 LOGGER = log_utils.getLogger()
 
@@ -30,14 +28,10 @@ LOGGER = log_utils.getLogger()
 def _one_dimension_dot(X, w):
     res = 0
     # LOGGER.debug("_one_dimension_dot, len of w: {}, len of X: {}".format(len(w), len(X)))
-    if isinstance(X, csr_matrix):
-        for idx, value in zip(X.indices, X.data):
-            res += value * w[idx]
-    else:
-        for i in range(len(X)):
-            if np.fabs(X[i]) < 1e-5:
-                continue
-            res += w[i] * X[i]
+    for i in range(len(X)):
+        if np.fabs(X[i]) < 1e-5:
+            continue
+        res += w[i] * X[i]
 
     if res == 0:
         if isinstance(w[0], PaillierEncryptedNumber):
@@ -65,17 +59,6 @@ def dot(value, w):
         res = np.dot(X, w)
 
     return res
-
-
-def vec_dot(x, w):
-    new_data = 0
-    if isinstance(x, SparseVector):
-        for idx, v in x.get_all_data():
-            # if idx < len(w):
-            new_data += v * w[idx]
-    else:
-        new_data = np.dot(x, w)
-    return new_data
 
 
 def reduce_add(x, y):

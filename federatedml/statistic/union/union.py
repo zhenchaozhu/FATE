@@ -97,11 +97,9 @@ class Union(ModelBase):
         self.is_data_instance = isinstance(entry[1], Instance)
 
     def fit(self, data):
-        if data is None:
+        if len(data) <= 0:
             LOGGER.warning("Union receives no data input.")
             return
-        if not isinstance(data, dict):
-            data = {"data": data}
         empty_count = 0
         combined_table = None
         combined_schema = None

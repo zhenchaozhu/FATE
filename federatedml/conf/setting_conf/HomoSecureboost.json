@@ -1,0 +1,20 @@
+{
+    "module_path":  "federatedml/tree/homo",
+    "default_runtime_conf": "boosting_tree_param.json",
+    "param_class" : "federatedml/param/boosting_tree_param.py/BoostingTreeParam",
+    "role":
+    {
+        "guest":
+        {
+            "program": "homo_secureboosting_tree_guest.py/HomoSecureBoostingTreeGuest"
+        },
+        "host":
+        {
+            "program": "homo_secureboosting_tree_host.py/HomoSecureBoostingTreeHost"
+        },
+        "arbiter":
+        {
+            "program": "homo_secureboosting_tree_arbiter.py/HomoSecureBoostingTreeArbiter"
+        }
+    }
+}
