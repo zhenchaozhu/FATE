@@ -29,7 +29,7 @@ from federatedml.ftl.test.mock_models import MockFTLModelParam
 if __name__ == '__main__':
 
     infile = "../../../../examples/data/UCI_Credit_Card.csv"
-    X, y = load_UCI_Credit_Card_data(infile=infile, balanced=True)
+    X, y = load_UCI_Credit_Card_data(file_path=infile, balanced=True)
 
     X_A, y_A, X_B, y_B, overlap_indexes = split_data_combined(X, y,
                                                               overlap_ratio=0.1,

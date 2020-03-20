@@ -17,18 +17,43 @@
 import csv
 
 import numpy as np
+import pandas as pd
+import sklearn
 from sklearn.preprocessing.data import StandardScaler, OneHotEncoder
 
 from federatedml.ftl.data_util.common_data_util import balance_X_y, shuffle_X_y, generate_table_namespace_n_name, \
     create_guest_host_data_generator, split_into_guest_host_dtable
 
 
-def load_UCI_Credit_Card_data(infile=None, balanced=True, seed=5):
+def train_test_split_for_UCI_Credit_Card_dataset(file_path, des_folder, train_ratio=0.8, shuffle=True):
+    data = pd.read_csv(file_path)
+    N, D = data.shape
+
+    if shuffle:
+        data = sklearn.utils.shuffle(data)
+
+    num_train_samples = int(train_ratio * N)
+    print("number of training samples:{0}".format(num_train_samples))
+
+    train_data, test_data = data[:num_train_samples], data[num_train_samples:]
+    print("train_data shape {0}".format(train_data.shape))
+    print("test_data shape {0}".format(test_data.shape))
+
+    file_name_train = des_folder + "/UCI_Credit_Card_train.csv"
+    file_name_test = des_folder + "/UCI_Credit_Card_test.csv"
+    print("save train data to {0}".format(file_name_train))
+    print("save test data to {0}".format(file_name_test))
+
+    train_data.to_csv(file_name_train, index=False)
+    test_data.to_csv(file_name_test, index=False)
+
+
+def load_UCI_Credit_Card_data(file_path=None, balanced=True, seed=5):
     X = []
     y = []
     sids = []
 
-    with open(infile, "r") as fi:
+    with open(file_path, "r") as fi:
         fi.readline()
         reader = csv.reader(fi)
         for row in reader:
@@ -60,7 +85,7 @@ def load_UCI_Credit_Card_data(infile=None, balanced=True, seed=5):
 
 def load_guest_host_generators_for_UCI_Credit_Card(file_path, num_samples=None, overlap_ratio=0.2,
                                                    guest_split_ratio=0.5, guest_feature_num=16, balanced=True):
-    X, y = load_UCI_Credit_Card_data(infile=file_path, balanced=balanced)
+    X, y = load_UCI_Credit_Card_data(file_path=file_path, balanced=balanced)
 
     if num_samples is not None:
         X = X[:num_samples]
@@ -102,7 +127,7 @@ def load_guest_host_dtable_from_UCI_Credit_Card(data_model_param_dict: dict):
 
 def _load_guest_host_dtable_from_UCI_Credit_Card(file_path, tables_name, num_samples=None, overlap_ratio=0.2,
                                                  guest_split_ratio=0.5, guest_feature_num=16, balanced=True):
-    X, y = load_UCI_Credit_Card_data(infile=file_path, balanced=balanced)
+    X, y = load_UCI_Credit_Card_data(file_path=file_path, balanced=balanced)
 
     if num_samples is not None:
         X = X[:num_samples]
@@ -114,3 +139,12 @@ def _load_guest_host_dtable_from_UCI_Credit_Card(file_path, tables_name, num_sam
                                                             tables_name=tables_name)
 
     return guest_data, host_data
+
+
+if __name__ == '__main__':
+    data_folder = "../../../examples/data"
+    data_file_name = "UCI_Credit_Card.csv"
+    train_test_split_for_UCI_Credit_Card_dataset(file_path=data_folder + "/" + data_file_name,
+                                                 des_folder=data_folder,
+                                                 train_ratio=0.8,
+                                                 shuffle=True)

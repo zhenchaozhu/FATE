@@ -142,31 +142,30 @@ class Autoencoder(object):
         encrypt_grads_b = distribute_compute_sum_XY(encrypt_grads, grads_b)
         return encrypt_grads_W, encrypt_grads_b
 
+    def _compute_learning_rate(self, epoch=None):
+        current_lr = self.init_learning_rate if self.learning_rate_decay_func is None \
+            else self.learning_rate_decay_func(init_learning_rate=self.init_learning_rate, epoch=epoch)
+
+        if self.learning_rate_decay_func is not None:
+            LOGGER.info("at epoch {0}, learning rate of autoencoder [{1}] decays from {2} to {3}".
+                        format(epoch, self.id, self.init_learning_rate, current_lr))
+        return current_lr
+
     def apply_gradients(self, gradients, epoch=None):
         grads_W = gradients[0]
         grads_b = gradients[1]
 
-        current_lr = self.init_learning_rate if self.learning_rate_decay_func is None \
-            else self.learning_rate_decay_func(init_learning_rate=self.init_learning_rate, epoch=epoch)
-
-        if self.learning_rate_decay_func is not None:
-            LOGGER.info("at epoch {0}, learning rate of autoencoder [{1}] decays from {2} to {3}".
-                        format(epoch, self.id, self.init_learning_rate, current_lr))
+        learning_rate = self._compute_learning_rate(epoch=epoch)
         self.sess.run([self.new_Wh, self.new_bh],
                       feed_dict={self.grads_W_new: grads_W,
                                  self.grads_b_new: grads_b,
-                                 self.learning_rate_placeholder: current_lr})
+                                 self.learning_rate_placeholder: learning_rate})
 
     def backpropagate(self, X, y, in_grad, epoch=None):
-        current_lr = self.init_learning_rate if self.learning_rate_decay_func is None \
-            else self.learning_rate_decay_func(init_learning_rate=self.init_learning_rate, epoch=epoch)
-
-        if self.learning_rate_decay_func is not None:
-            LOGGER.info("at epoch {0}, learning rate of autoencoder [{1}] decays from {2} to {3}".
-                        format(epoch, self.id, self.init_learning_rate, current_lr))
+        learning_rate = self._compute_learning_rate(epoch=epoch)
         self.sess.run(self.train_op, feed_dict={self.X_in: X,
                                                 self.init_grad: in_grad,
-                                                self.learning_rate_placeholder: current_lr})
+                                                self.learning_rate_placeholder: learning_rate})
 
     def predict(self, X):
         return self.sess.run(self.X_hat, feed_dict={self.X_in: X})

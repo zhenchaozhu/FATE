@@ -33,7 +33,7 @@ if __name__ == '__main__':
 
     init()
     infile = "../../../../examples/data/UCI_Credit_Card.csv"
-    X, y = load_UCI_Credit_Card_data(infile=infile, balanced=True)
+    X, y = load_UCI_Credit_Card_data(file_path=infile, balanced=True)
 
     X = X[:500]
     y = y[:500]

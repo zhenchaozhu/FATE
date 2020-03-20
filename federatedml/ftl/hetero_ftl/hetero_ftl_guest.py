@@ -26,7 +26,6 @@ from federatedml.ftl.data_util.log_util import create_shape_msg
 from federatedml.ftl.eggroll_computation.helper import distribute_decrypt_matrix
 from federatedml.ftl.encrypted_ftl import EncryptedFTLGuestModel
 from federatedml.ftl.encryption.encryption import generate_encryption_key_pair, decrypt_array
-from federatedml.ftl.faster_encrypted_ftl import FasterEncryptedFTLGuestModel
 from federatedml.ftl.hetero_ftl.hetero_ftl_base import HeteroFTLParty
 from federatedml.ftl.plain_ftl import PlainFTLGuestModel
 from federatedml.optim.convergence import DiffConverge
@@ -141,7 +140,7 @@ class HeteroPlainFTLGuest(HeteroFTLGuest):
                                      idx=-1)[0]
             LOGGER.debug("receive host_comp: " + str(host_comp[0].shape) + ", " + str(host_comp[1].shape) + ", " + str(
                 host_comp[2].shape))
-            self.guest_model.receive_components(host_comp)
+            self.guest_model.receive_components(host_comp, epoch=self.n_iter_)
 
             loss = self.guest_model.send_loss()
             if self.converge_func.is_converge(loss):
@@ -169,9 +168,9 @@ Centralized encryption scheme with an arbiter in the loop for decryption.
 
 class HeteroEncryptFTLGuest(HeteroFTLGuest):
 
-    def __init__(self, guest, model_param: FTLModelParam, transfer_variable: HeteroFTLTransferVariable):
-        super(HeteroEncryptFTLGuest, self).__init__(guest, model_param, transfer_variable)
-        self.guest_model: EncryptedFTLGuestModel = guest
+    def __init__(self, guest_model, model_param: FTLModelParam, transfer_variable: HeteroFTLTransferVariable):
+        super(HeteroEncryptFTLGuest, self).__init__(guest_model, model_param, transfer_variable)
+        self.guest_model: EncryptedFTLGuestModel = guest_model
 
     def _precompute(self):
         pass
@@ -247,30 +246,6 @@ class HeteroEncryptFTLGuest(HeteroFTLGuest):
 
         end_time = time.time()
         LOGGER.info("@ running time: " + str(end_time - start_time))
-
-
-class FasterHeteroEncryptFTLGuest(HeteroEncryptFTLGuest):
-
-    def __init__(self, guest, model_param: FTLModelParam, transfer_variable: HeteroFTLTransferVariable):
-        super(FasterHeteroEncryptFTLGuest, self).__init__(guest, model_param, transfer_variable)
-        self.guest_model: FasterEncryptedFTLGuestModel = guest
-
-    def _precompute(self):
-        LOGGER.info("@ start guest precompute")
-
-        guest_precomputed_comp = self.guest_model.send_precomputed_components()
-        self._do_remote(guest_precomputed_comp, name=self.transfer_variable.guest_precomputed_comp_list.name,
-                        tag=self.transfer_variable.generate_transferid(
-                            self.transfer_variable.guest_precomputed_comp_list,
-                            self.n_iter_),
-                        role=consts.HOST,
-                        idx=-1)
-
-        host_precomputed_comp = self._do_get(name=self.transfer_variable.host_precomputed_comp_list.name,
-                                             tag=self.transfer_variable.generate_transferid(
-                                                 self.transfer_variable.host_precomputed_comp_list, self.n_iter_),
-                                             idx=-1)[0]
-        self.guest_model.receive_precomputed_components(host_precomputed_comp)
 
 
 """
@@ -367,6 +342,7 @@ class HeteroDecentralizedEncryptFTLGuest(HeteroFTLGuest):
             LOGGER.debug("guest exchange spending time {0}".format(exchange_spending_time))
 
             loss = None
+            # TODO comm-eft: start local training
             for local_iter in range(self.local_iterations):
                 local_iter_start_time = time.time()
                 LOGGER.debug("--> guest local computation: {0}".format(local_iter))
@@ -382,7 +358,8 @@ class HeteroDecentralizedEncryptFTLGuest(HeteroFTLGuest):
 
                 gradient_decryption_start_time = time.time()
                 # add random mask to encrypt_guest_gradients and encrypt_loss, and send them to host for decryption
-                masked_enc_guest_gradients, gradients_masks = add_random_mask_for_list_of_values(encrypt_guest_gradients)
+                masked_enc_guest_gradients, gradients_masks = add_random_mask_for_list_of_values(
+                    encrypt_guest_gradients)
                 masked_enc_loss, loss_mask = add_random_mask(encrypt_loss)
 
                 LOGGER.debug("send masked_enc_guest_gradients: " + create_shape_msg(masked_enc_guest_gradients))
@@ -392,10 +369,13 @@ class HeteroDecentralizedEncryptFTLGuest(HeteroFTLGuest):
                                 role=consts.HOST,
                                 idx=-1)
 
+                # TODO comm-eft: send encrypted loss to host for decryption.
+                # TODO We want to compute the loss on the first local iteration.
                 if local_iter == 0:
                     self._do_remote(masked_enc_loss, name=self.transfer_variable.masked_enc_loss.name,
-                                    tag=self.transfer_variable.generate_transferid(self.transfer_variable.masked_enc_loss,
-                                                                                   self.n_iter_),
+                                    tag=self.transfer_variable.generate_transferid(
+                                        self.transfer_variable.masked_enc_loss,
+                                        self.n_iter_),
                                     role=consts.HOST,
                                     idx=-1)
 
@@ -437,6 +417,7 @@ class HeteroDecentralizedEncryptFTLGuest(HeteroFTLGuest):
                 # update guest model parameters using these gradients.
                 self.guest_model.receive_gradients(cleared_dec_guest_gradients, epoch=self.n_iter_)
 
+                # TODO comm-eft: get decrypted loss from host.
                 if local_iter == 0:
                     masked_dec_loss = self._do_get(name=self.transfer_variable.masked_dec_loss.name,
                                                    tag=self.transfer_variable.generate_transferid(
@@ -446,6 +427,8 @@ class HeteroDecentralizedEncryptFTLGuest(HeteroFTLGuest):
 
                     loss = remove_random_mask(masked_dec_loss, loss_mask)
 
+                # TODO comm-eft: We would not compute components on the last local iteration.
+                # TODO This depends on specific algorithm.
                 if local_iter != self.local_iterations - 1:
                     self.guest_model.compute_components()
 
@@ -483,30 +466,6 @@ class HeteroDecentralizedEncryptFTLGuest(HeteroFTLGuest):
                                                                                                 encrypt_gradients[1])
 
 
-class FasterHeteroDecentralizedEncryptFTLGuest(HeteroDecentralizedEncryptFTLGuest):
-
-    def __init__(self, guest_model, model_param: FTLModelParam, transfer_variable: HeteroFTLTransferVariable):
-        super(FasterHeteroDecentralizedEncryptFTLGuest, self).__init__(guest_model, model_param, transfer_variable)
-        self.guest_model: FasterEncryptedFTLGuestModel = guest_model
-
-    def _precompute(self):
-        LOGGER.debug("@ start precompute")
-
-        guest_precomputed_comp = self.guest_model.send_precomputed_components()
-        self._do_remote(guest_precomputed_comp, name=self.transfer_variable.guest_precomputed_comp_list.name,
-                        tag=self.transfer_variable.generate_transferid(
-                            self.transfer_variable.guest_precomputed_comp_list,
-                            self.n_iter_),
-                        role=consts.HOST,
-                        idx=-1)
-
-        host_precomputed_comp = self._do_get(name=self.transfer_variable.host_precomputed_comp_list.name,
-                                             tag=self.transfer_variable.generate_transferid(
-                                                 self.transfer_variable.host_precomputed_comp_list, self.n_iter_),
-                                             idx=-1)[0]
-        self.guest_model.receive_precomputed_components(host_precomputed_comp)
-
-
 class GuestFactory(object):
 
     @classmethod
@@ -517,21 +476,13 @@ class GuestFactory(object):
                 LOGGER.debug("@ create decentralized encrypted ftl_guest")
                 guest_model = EncryptedFTLGuestModel(local_model=ftl_local_model, model_param=ftl_model_param)
                 guest = HeteroDecentralizedEncryptFTLGuest(guest_model, ftl_model_param, transfer_variable)
-            elif ftl_model_param.enc_ftl == "dct_enc_ftl2":
-                # decentralized encrypted faster ftl guest
-                LOGGER.debug("@ create decentralized encrypted faster ftl_guest")
-                guest_model = FasterEncryptedFTLGuestModel(local_model=ftl_local_model, model_param=ftl_model_param)
-                guest = FasterHeteroDecentralizedEncryptFTLGuest(guest_model, ftl_model_param, transfer_variable)
-            elif ftl_model_param.enc_ftl == "enc_ftl2":
-                # encrypted faster ftl guest
-                LOGGER.debug("@ create encrypt faster ftl_guest")
-                guest_model = FasterEncryptedFTLGuestModel(local_model=ftl_local_model, model_param=ftl_model_param)
-                guest = FasterHeteroEncryptFTLGuest(guest_model, ftl_model_param, transfer_variable)
-            else:
+            elif ftl_model_param.enc_ftl == "enc_ftl":
                 # encrypted ftl guest
                 LOGGER.debug("@ create encrypt ftl_guest")
                 guest_model = EncryptedFTLGuestModel(local_model=ftl_local_model, model_param=ftl_model_param)
                 guest = HeteroEncryptFTLGuest(guest_model, ftl_model_param, transfer_variable)
+            else:
+                raise Exception("{0} is not a supported ftl model,".format(ftl_model_param.enc_ftl))
         else:
             # plain ftl guest
             LOGGER.debug("@ create plain ftl_guest")

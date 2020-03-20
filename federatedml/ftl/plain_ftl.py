@@ -108,14 +108,14 @@ class PlainFTLGuestModel(PartyModelInterface):
         self.compute_components()
         return [self.y_overlap_2_phi_2, self.y_overlap_phi, self.mapping_comp_A]
 
-    def receive_components(self, components):
+    def receive_components(self, components, epoch=None):
         self.uB_overlap = components[0]
         self.uB_overlap_2 = components[1]
         self.mapping_comp_B = components[2]
-        self._update_gradients()
+        self._update_gradients(epoch=epoch)
         self._update_loss()
 
-    def _update_gradients(self):
+    def _update_gradients(self, epoch=None):
 
         # y_overlap_2 have shape (len(overlap_indexes), 1),
         # phi has shape (1, feature_dim),
@@ -145,7 +145,7 @@ class PlainFTLGuestModel(PartyModelInterface):
         loss_grad_A[self.non_overlap_indexes, :] = grad_A_nonoverlap
         loss_grad_A[self.overlap_indexes, :] = grad_A_overlap
         self.loss_grads = loss_grad_A
-        self.localModel.backpropagate(self.X, self.y, loss_grad_A)
+        self.localModel.backpropagate(X=self.X, y=None, in_grad=loss_grad_A, epoch=epoch)
 
     def send_loss(self):
         return self.loss
@@ -215,13 +215,13 @@ class PlainFTLHostModel(PartyModelInterface):
         self.compute_components()
         return [self.uB_overlap, self.uB_overlap_2, self.mapping_comp_B]
 
-    def receive_components(self, components):
+    def receive_components(self, components, epoch=None):
         self.y_overlap_2_phi_2 = components[0]
         self.y_overlap_phi = components[1]
         self.mapping_comp_A = components[2]
-        self._update_gradients()
+        self._update_gradients(epoch=epoch)
 
-    def _update_gradients(self):
+    def _update_gradients(self, epoch=None):
         # uB_overlap_ex has shape (len(overlap_indexes), 1, feature_dim)
         uB_overlap_ex = np.expand_dims(self.uB_overlap, axis=1)
 
@@ -234,7 +234,7 @@ class PlainFTLHostModel(PartyModelInterface):
         l1_grad_B = np.squeeze(uB_overlap_y_overlap_2_phi_2, axis=1) + self.y_overlap_phi
         loss_grad_B = self.alpha * l1_grad_B + self.mapping_comp_A
         self.loss_grads = loss_grad_B
-        self.localModel.backpropagate(self.X[self.overlap_indexes], None, loss_grad_B)
+        self.localModel.backpropagate(X=self.X[self.overlap_indexes], y=None, in_grad=loss_grad_B, epoch=epoch)
 
     def get_loss_grads(self):
         return self.loss_grads
