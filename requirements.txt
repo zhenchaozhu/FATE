@@ -82,6 +82,7 @@ peewee==3.9.3
 pexpect==4.6.0
 phe==1.4.0
 pickleshare==0.7.4
+pika==1.1.0
 plyvel==1.1.0
 pox==0.2.4
 ppft==1.6.4.8
@@ -103,6 +104,7 @@ python-engineio==3.9.0
 python-Levenshtein==0.12.0
 python-socketio==2.0.0
 python-speech-features==0.5
+pyspark==2.4.5
 pytz==2018.5
 PyYAML==4.2b1
 pyzmq==17.1.2
