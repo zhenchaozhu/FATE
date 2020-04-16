@@ -140,7 +140,7 @@ buildModule() {
   # federatedrec
   cd ${source_code_dir}
 
-  for module in "client" "federation" "proxy" "python" "roll" "meta-service" "fateboard" "egg"
+  for module in "client" "federation" "proxy" "roll" "meta-service" "fateboard" "egg" "python"
   do
       echo "### START BUILDING ${module} ###"
       docker build --build-arg version=${version} --build-arg fateboard_version=${fateboard_version} --build-arg PREFIX=${PREFIX} --build-arg BASE_TAG=${BASE_TAG} -t ${PREFIX}/${module}:${TAG} -f ${source_code_dir}/docker-build/docker/modules/${module}/Dockerfile ${source_code_dir}/docker-build/docker/modules/${module}
@@ -334,7 +334,11 @@ package() {
 
 pushImage() {
   ## push image
+<<<<<<< HEAD
   for module in "client" "federation" "proxy" "python" "roll" "meta-service" "fateboard" "egg"
+=======
+  for module in "federation" "proxy" "roll" "python" "meta-service" "fateboard" "egg" "client"
+>>>>>>> 1. Add client module; 2. Fix the Miniconda3 download problem in base image.
   do
       echo "### START PUSH ${module} ###"
       docker push ${PREFIX}/${module}:${TAG}

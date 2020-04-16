@@ -28,7 +28,11 @@ class FMLManager:
     def __init__(self, server_conf="/data/projects/fate/python/arch/conf/server_conf.json", log_path="./"):
         self.server_conf = file_utils.load_json_conf(server_conf)
         self.ip = self.server_conf.get("servers").get("fateflow").get("host")
+<<<<<<< HEAD
         if self.ip in ['localhost', '127.0.0.1']:
+=======
+        if self.ip in ['localhost', '127.0.0.1', 'python']:
+>>>>>>> 1. Add client module; 2. Fix the Miniconda3 download problem in base image.
             self.ip = get_lan_ip()
 
         self.http_port = self.server_conf.get("servers").get("fateflow").get("http.port")
