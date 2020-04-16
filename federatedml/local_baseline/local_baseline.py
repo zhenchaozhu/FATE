@@ -40,10 +40,10 @@ class LocalBaseline(ModelBase):
     def __init__(self):
         super(LocalBaseline, self).__init__()
         self.model_param = LocalBaselineParam()
-        self.model_name = "LocalBaseline"
+        self.model_name = 'LocalBaseline'
         self.metric_type = ""
-        self.model_param_name = "LocalBaselineParam"
-        self.model_meta_name = "LocalBaselineMeta"
+        self.model_param_name = 'LogisticRegressionParam'
+        self.model_meta_name = 'LogisticRegressionMeta'
 
         # one_ve_rest parameter
         self.need_one_vs_rest = None
@@ -155,6 +155,55 @@ class LocalBaseline(ModelBase):
             self.model_param_name: param_obj
         }
         return result
+
+    def _load_single_coef(self, result_obj):
+        feature_shape = len(self.header)
+        tmp_vars = np.zeros(feature_shape)
+        weight_dict = dict(result_obj.weight)
+        for idx, header_name in enumerate(self.header):
+            tmp_vars[idx] = weight_dict.get(header_name)
+        return tmp_vars
+
+    def _load_single_model(self, result_obj):
+        coef = self._load_single_coef(result_obj)
+        self.model_fit.coef_ = np.array([coef])
+        self.model_fit.intercept_ = result_obj.intercept
+        self.model_fit.classes_ = np.array([0, 1])
+        return
+
+    def _load_ovr_model(self, result_obj):
+        one_vs_rest_result = result_obj.one_vs_rest_result
+        classes = one_vs_rest_result.one_vs_rest_classes
+        models = one_vs_rest_result.completed_models
+
+        class_count, feature_shape = len(classes), len(self.header)
+        coef_all = np.zeros((class_count, feature_shape))
+        intercept_all = np.zeros(class_count)
+
+        for i, label in enumerate(classes):
+            model = models[i]
+            coef = self._load_single_coef(model)
+            coef_all[i,] = coef
+            intercept_all[i] = model.interpcet
+
+        self.model_fit.coef_ = coef_all
+        self.model_fit.intercept_ = intercept_all
+        self.model_fit.classes_ = classes
+        return
+
+    def load_model(self, model_dict):
+        result_obj = list(model_dict.get('model').values())[0].get(self.model_param_name)
+        meta_obj = list(model_dict.get('model').values())[0].get(self.model_meta_name)
+        self.header = list(result_obj.header)
+        self.model_fit = LogisticRegression()
+
+        need_one_vs_rest = meta_obj.need_one_vs_rest
+        LOGGER.debug("in _load_model need_one_vs_rest: {}".format(need_one_vs_rest))
+        if need_one_vs_rest:
+            self._load_ovr_model(result_obj)
+        else:
+            self._load_single_model(result_obj)
+        return
 
     def predict(self, data_instances):
         if not self.need_run:
