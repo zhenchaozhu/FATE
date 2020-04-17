@@ -80,7 +80,8 @@ class LocalBaseline(ModelBase):
                   'is_converged': is_converged,
                   'weight': weight_dict,
                   'intercept': intercept,
-                  'header': self.header
+                  'header': self.header,
+                  'best_iteration': -1
                   }
         return result
 
@@ -102,7 +103,8 @@ class LocalBaseline(ModelBase):
                       'is_converged': is_converged,
                       'weight': weight_dict,
                       'intercept': intercept,
-                      'header': self.header
+                      'header': self.header,
+                      'best_iteration': -1
                       }
             param_protobuf_obj = lr_model_param_pb2.SingleModel(**result)
             ovr_pb_objs.append(param_protobuf_obj)
@@ -112,7 +114,10 @@ class LocalBaseline(ModelBase):
             'completed_models': ovr_pb_objs,
             'one_vs_rest_classes': ovr_pb_classes
         }
-        return one_vs_rest_result
+        param_result = {'one_vs_rest_result': one_vs_rest_result,
+                        'need_one_vs_rest': True,
+                        'header': self.header}
+        return param_result
 
     def _get_param(self):
         header = self.header
@@ -122,7 +127,7 @@ class LocalBaseline(ModelBase):
             return param_protobuf_obj
         if self.need_one_vs_rest:
             result = self._get_model_param_ovr()
-            param_protobuf_obj = lr_model_param_pb2.OneVsRestResult(**result)
+            param_protobuf_obj = lr_model_param_pb2.LRModelParam(**result)
 
         else:
             result = self._get_model_param()
@@ -166,36 +171,48 @@ class LocalBaseline(ModelBase):
 
     def _load_single_model(self, result_obj):
         coef = self._load_single_coef(result_obj)
-        self.model_fit.coef_ = np.array([coef])
-        self.model_fit.intercept_ = result_obj.intercept
-        self.model_fit.classes_ = np.array([0, 1])
+        self.model_fit.__setattr__('coef_', np.array([coef]))
+        self.model_fit.__setattr__('intercept_', np.array([result_obj.intercept]))
+        self.model_fit.__setattr__('classes_', np.array([0, 1]))
+        self.model_fit.__setattr__('n_iter_', [result_obj.iters])
         return
 
     def _load_ovr_model(self, result_obj):
         one_vs_rest_result = result_obj.one_vs_rest_result
-        classes = one_vs_rest_result.one_vs_rest_classes
+        classes = np.array([int(i) for i in one_vs_rest_result.one_vs_rest_classes])
         models = one_vs_rest_result.completed_models
 
         class_count, feature_shape = len(classes), len(self.header)
         coef_all = np.zeros((class_count, feature_shape))
         intercept_all = np.zeros(class_count)
+        iters = -1
 
         for i, label in enumerate(classes):
             model = models[i]
             coef = self._load_single_coef(model)
             coef_all[i,] = coef
-            intercept_all[i] = model.interpcet
+            intercept_all[i] = model.intercept
+            iters = model.iters
 
-        self.model_fit.coef_ = coef_all
-        self.model_fit.intercept_ = intercept_all
-        self.model_fit.classes_ = classes
+        self.model_fit.__setattr__('coef_', coef_all)
+        self.model_fit.__setattr__('intercept_', intercept_all)
+        self.model_fit.__setattr__('classes_', classes)
+        self.model_fit.__setattr__('n_iter_', [iters])
         return
+
+    def _load_model_meta(self, meta_obj):
+        self.model_fit.__setattr__('penalty', meta_obj.penalty)
+        self.model_fit.__setattr__('tol', meta_obj.tol)
+        self.model_fit.__setattr__('fit_intercept', meta_obj.fit_intercept)
+        self.model_fit.__setattr__('solver', meta_obj.optimizer)
+        self.model_fit.__setattr__('max_iter', meta_obj.max_iter)
 
     def load_model(self, model_dict):
         result_obj = list(model_dict.get('model').values())[0].get(self.model_param_name)
         meta_obj = list(model_dict.get('model').values())[0].get(self.model_meta_name)
-        self.header = list(result_obj.header)
         self.model_fit = LogisticRegression()
+        self._load_model_meta(meta_obj)
+        self.header = list(result_obj.header)
 
         need_one_vs_rest = meta_obj.need_one_vs_rest
         LOGGER.debug("in _load_model need_one_vs_rest: {}".format(need_one_vs_rest))

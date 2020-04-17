@@ -17,6 +17,22 @@
           "role": "host_0"
         },
       {
+          "file": "examples/data/vehicle_scale_b.csv",
+          "head": 1,
+          "partition": 48,
+          "table_name": "hetero_vehicle_b",
+          "namespace": "hetero_guest_vehicle",
+          "role": "guest_0"
+        },
+      {
+          "file": "examples/data/vehicle_scale_a.csv",
+          "head": 1,
+          "partition": 48,
+          "table_name": "hetero_vehicle_a",
+          "namespace": "hetero_host_vehicle",
+          "role": "host_0"
+        },
+      {
           "file": "examples/data/breast_homo_guest.csv",
           "head": 1,
           "partition": 10,
@@ -34,8 +50,16 @@
         }
   ],
   "tasks": {
-    "local_baseline": {
+    "local_baseline-binary": {
       "conf": "test_local_baseline_job_conf.json",
+      "dsl": "test_local_baseline_predict_job_dsl.json"
+    },
+    "predict": {
+      "conf": "test_predict_conf.json",
+      "deps": "local_baseline-binary"
+    },
+    "local_baseline-ovr": {
+      "conf": "test_local_baseline_ovr_job_conf.json",
       "dsl": "test_local_baseline_job_dsl.json"
     },
     "local_baseline-homo": {

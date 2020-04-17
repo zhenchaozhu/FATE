@@ -23,14 +23,14 @@
         "data": {
           "train_data": [
             {
-              "name": "hetero_breast_b",
-              "namespace": "hetero_breast_guest"
+              "name": "hetero_vehicle_b",
+              "namespace": "hetero_guest_vehicle"
             }
           ],
           "eval_data": [
             {
-              "name": "hetero_breast_b",
-              "namespace": "hetero_breast_guest"
+              "name": "hetero_vehicle_b",
+              "namespace": "hetero_guest_vehicle"
             }
           ]
         }
@@ -62,14 +62,14 @@
         "data": {
           "train_data": [
             {
-              "name": "hetero_breast_a",
-              "namespace": "hetero_breast_host"
+              "name": "hetero_vehicle_a",
+              "namespace": "hetero_host_vehicle"
             }
           ],
           "eval_data": [
             {
-              "name": "hetero_breast_a",
-              "namespace": "hetero_breast_host"
+              "name": "hetero_vehicle_a",
+              "namespace": "hetero_host_vehicle"
             }
           ]
         }
@@ -101,7 +101,7 @@
       "batch_size": -1,
       "learning_rate": 0.15,
       "init_param": {
-        "init_method": "zeros"
+        "init_method": "random_uniform"
       },
       "cv_param": {
         "n_splits": 5,
