@@ -2,13 +2,23 @@
 
 This section introduces the dsl and conf for usage of different tasks.
 
-1. Hetero Train Task:
+1. Hetero Binary Train Task:
 
-    dsl: test_local_baseline_job_dsl.json
+    dsl: test_local_baseline_predict_job_dsl.json
 
     runtime_config : test_local_baseline_job_conf.json
 
-2.  Homo Train Task:
+2. Predict Task:
+
+    runtime_config: test_predict_conf.json 
+
+3. Hetero One-vs-rest Train Task:
+    
+   dsl: test_local_baseline_job_dsl.json
+
+   runtime_config : test_local_baseline_ovr_job_conf.json
+
+4.  Homo Train Task:
 
     dsl: test_local_baseline_homo_job_dsl.json
 
