@@ -117,6 +117,14 @@
     "multi_host_sparse_optimal": {
       "conf": "./multi_hosts_sparse_optimal_binning_job_conf.json",
       "dsl": "./test_hetero_binning_job_dsl.json"
+    },
+    "iv_col_index": {
+      "conf": "./test_optimal_binning_col_index_job_conf.json",
+      "dsl": "./test_hetero_binning_job_dsl.json"
+    },
+    "col_names": {
+      "conf": "./test_hetero_binning_col_names_job_conf.json",
+      "dsl": "./test_hetero_binning_job_dsl.json"
     }
   }
 }
