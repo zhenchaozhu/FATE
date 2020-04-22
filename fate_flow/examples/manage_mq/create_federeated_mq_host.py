@@ -41,7 +41,7 @@ if __name__ == "__main__":
     rabbit_manager.CreateQueue(job_id, receive_queue_name)
 
     # replace the ip address with mq broker of the host
-    upstream_uri = "amqp://{}:{}@192.168.1.1:5672".format(user, password)
+    upstream_uri = "amqp://{}:{}@10.193.2.120:5672".format(user, password)
     union_name = rabbit_manager.FederateQueue(upstream_uri ,job_id, receive_queue_name)
 
     try:
