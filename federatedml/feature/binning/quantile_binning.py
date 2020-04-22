@@ -20,6 +20,7 @@ import functools
 import uuid
 
 from federatedml.feature.binning.base_binning import BaseBinning
+from federatedml.feature.binning.bin_inner_param import BinInnerParam
 from federatedml.feature.binning.quantile_summaries import quantile_summary_factory
 from federatedml.param.feature_binning_param import FeatureBinningParam
 from federatedml.statistic import data_overview
@@ -274,38 +275,6 @@ class QuantileBinning(BaseBinning):
             new_dict[col_name] = summary1
         return new_dict
 
-    def query_quantile_point(self, data_instances, cols, query_points):
-        # self.cols = cols
-        # self._init_cols(data_instances)
-
-        is_sparse = data_overview.is_sparse_data(data_instances)
-        if self.summary_dict is None:
-            f = functools.partial(self.approxi_quantile,
-                                  cols_dict=self.bin_inner_param.bin_cols_map,
-                                  params=self.params,
-                                  header=self.header,
-                                  abnormal_list=self.abnormal_list,
-                                  is_sparse=is_sparse)
-            summary_dict = data_instances.mapPartitions(f)
-            summary_dict = summary_dict.reduce(self.merge_summary_dict)
-            self.summary_dict = summary_dict
-        else:
-            summary_dict = self.summary_dict
-
-        if isinstance(query_points, (int, float)):
-            query_dict = {}
-            for col_name in cols:
-                query_dict[col_name] = query_points
-        elif isinstance(query_points, dict):
-            query_dict = query_points
-        else:
-            raise ValueError("query_points has wrong type, should be a float, int or dict")
-
-        result = {}
-        for col_name, query_point in query_dict.items():
-            summary = summary_dict[col_name]
-            result[col_name] = summary.query(query_point)
-        return result
 
 
 class QuantileBinningTool(QuantileBinning):
@@ -318,3 +287,82 @@ class QuantileBinningTool(QuantileBinning):
         if param_obj is None:
             param_obj = FeatureBinningParam(bin_num=bin_nums)
         super().__init__(params=param_obj, abnormal_list=abnormal_list, allow_duplicate=allow_duplicate)
+
+    def query_quantile_point(self, query_points, data_instances=None, bin_param: FeatureBinningParam=None):
+        """
+        Get specific quantile points
+
+        Parameters
+        ----------
+        query_points: float or dict
+            Indicate which quantile points to query, should be in range [0, 1].
+            If dict is provided, the keys are col_indexes, values are corresponding query points.
+
+        data_instances : DTable
+            The input data. Needed if quantile obj has not been fit yet
+
+        bin_param: Param obj
+            Setting bin params
+
+        """
+        # self.cols = cols
+        # self._init_cols(data_instances)
+
+        if self.summary_dict is None:
+            if data_instances is None:
+                raise ValueError("Quantile object has not been fit yet, data_instances is needed")
+            self._setup_bin_inner_param(bin_param, data_overview.get_header(data_instances))
+            self.__fit_summary_dict(data_instances)
+        summary_dict = self.summary_dict
+
+        if isinstance(query_points, (int, float)):
+            if query_points > 1 or query_points < 0:
+                raise ValueError("query_points has wrong type, should be a float or int and in range [0, 1]")
+            query_dict = {}
+            for bin_index in self.bin_inner_param.bin_indexes:
+                query_dict[bin_index] = query_points
+        elif isinstance(query_points, dict):
+            query_dict = query_points
+        else:
+            raise ValueError("query_points has wrong type, should be a float, int or dict")
+
+        result = {}
+        for col_idx, query_point in query_dict.items():
+            col_name = self.header[col_idx]
+            summary = summary_dict[col_name]
+            result[col_name] = summary.query(query_point)
+        return result
+
+    def __fit_summary_dict(self, data_instances):
+        is_sparse = data_overview.is_sparse_data(data_instances)
+        f = functools.partial(self.approxi_quantile,
+                              cols_dict=self.bin_inner_param.bin_cols_map,
+                              params=self.params,
+                              header=self.header,
+                              abnormal_list=self.abnormal_list,
+                              is_sparse=is_sparse)
+        summary_dict = data_instances.mapPartitions(f)
+        summary_dict = summary_dict.reduce(self.merge_summary_dict)
+        self.summary_dict = summary_dict
+        return summary_dict
+
+    def _setup_bin_inner_param(self, params, header):
+        if params is None:
+            return self._default_setting(header)
+
+        self.bin_inner_param = BinInnerParam()
+        self.bin_inner_param.set_header(header)
+        if params.bin_indexes == -1:
+            self.bin_inner_param.set_bin_all()
+        else:
+            self.bin_inner_param.add_bin_indexes(params.bin_indexes)
+            self.bin_inner_param.add_bin_names(params.bin_names)
+
+        self.bin_inner_param.add_category_indexes(params.category_indexes)
+        self.bin_inner_param.add_category_names(params.category_names)
+
+        if params.transform_param.transform_cols == -1:
+            self.bin_inner_param.set_transform_all()
+        else:
+            self.bin_inner_param.add_transform_bin_indexes(params.transform_param.transform_cols)
+            self.bin_inner_param.add_transform_bin_names(params.transform_param.transform_names)

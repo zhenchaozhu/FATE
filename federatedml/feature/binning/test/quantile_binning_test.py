@@ -20,7 +20,7 @@ import uuid
 import numpy as np
 
 from arch.api import session
-from federatedml.feature.binning.quantile_binning import QuantileBinning
+from federatedml.feature.binning.quantile_binning import QuantileBinning, QuantileBinningTool
 from federatedml.param.feature_binning_param import FeatureBinningParam
 from federatedml.feature.instance import Instance
 from federatedml.feature.sparse_vector import SparseVector
@@ -73,7 +73,7 @@ class TestQuantileBinning(unittest.TestCase):
     def test_abnormal(self):
         abnormal_list = [3, 4]
         bin_obj = self._bin_obj_generator(abnormal_list=abnormal_list, this_bin_num=bin_num - len(abnormal_list))
-        small_table = self.gen_data(10000, 50, 2)
+        small_table = self.gen_data(1000, 50, 2)
         split_points = bin_obj.fit_split_points(small_table)
         expect_split_points = list((range(1, bin_num)))
         expect_split_points = [float(x) for x in expect_split_points if x not in abnormal_list]
@@ -81,6 +81,19 @@ class TestQuantileBinning(unittest.TestCase):
         for _, s_ps in split_points.items():
             s_ps = s_ps.tolist()
             self.assertListEqual(s_ps, expect_split_points)
+
+    def test_quantile_query(self):
+        feature_num = 100
+        # bin_obj = self._bin_obj_generator()
+        bin_param = FeatureBinningParam()
+        bin_obj = QuantileBinningTool(bin_param)
+        small_table = self.gen_data(1000, feature_num, 48)
+
+        for query_point in [0, 0.3, 0.5, 0.7]:
+            quantile_point = bin_obj.query_quantile_point(query_point, small_table, bin_param)
+            print("query_point: {}, result: {}".format(query_point, list(quantile_point.items())[0]))
+            for col_name, query_res in quantile_point.items():
+                self.assertEqual(query_point * 10, query_res)
 
     def _bin_obj_generator(self, abnormal_list: list = None, this_bin_num=bin_num):
 
