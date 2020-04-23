@@ -2,16 +2,16 @@ import pyspark, pika
 from src import decrypt_blob, encrypt_blob
 
 
-def HandlePartition(message, public_key, job_id, user, password):
+def HandlePartition(messages, public_key, job_id, user, password):
+    for message in messages:
+        if len(message) != 0:
+            msg = encrypt_blob(message, public_key)
 
-    if len(message) != 0:
-        msg = encrypt_blob(message, public_key)
+            credentials = pika.PlainCredentials(user, password)
+            connection = pika.BlockingConnection(pika.ConnectionParameters("localhost", 5672, job_id, credentials))
+            channel = connection.channel()
 
-        credentials = pika.PlainCredentials(user, password)
-        connection = pika.BlockingConnection(pika.ConnectionParameters("localhost", 5672, job_id, credentials))
-        channel = connection.channel()
-
-        channel.basic_publish(exchange='', routing_key="send-{}".format(job_id), body=msg)
+            channel.basic_publish(exchange='', routing_key="send-{}".format(job_id), body=msg)
 
     return [0]
     
@@ -61,13 +61,10 @@ password = lines[1].replace('\n', "")
 
 # what's the differences between text_file and binary_rdd ?
 text_file = sc.textFile("./testfile/testfile_50_MB_*", use_unicode=False)
-binary_rdd = text_file.mapPartitions(lambda x: b''.join(x))
-
-print("This is the collection result: ", len(binary_rdd.collect()))
 
 # need to repartition the rdd
 # flat_map = text_file.flatMap(FlatMapFunction2)
-encrypt_send_rdd = binary_rdd.mapPartitions(lambda x: HandlePartition(b''.join(x), public_key, job_id, user, password))
+encrypt_send_rdd = text_file.mapPartitions(lambda x: HandlePartition(x, public_key, job_id, user, password))
 
 print(encrypt_send_rdd.collect())
 # print("This is the flat map partitions: ", flat_map.getNumPartitions())
