@@ -60,7 +60,7 @@ password = lines[1].replace('\n', "")
 # text_file = sc.textFile("./README.md")
 
 # what's the differences between text_file and binary_rdd ?
-text_file = sc.textFile("./testfile/testfile_50_MB_*", use_unicode=False)
+text_file = sc.textFile("./testfile/*", use_unicode=False)
 
 # need to repartition the rdd
 # flat_map = text_file.flatMap(FlatMapFunction2)

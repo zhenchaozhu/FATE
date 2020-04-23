@@ -1,6 +1,7 @@
 ## Usage
 1. start containers
 ```
+cd compose
 docker-compose up -d
 ```
 
@@ -14,12 +15,4 @@ python create_federeated_mq_guest.py
 python create_federeated_mq_host.py
 ```
 
-4. start consumer process
-```
-python receive.py
-```
-
-5. start producer process
-```
-python send.py
-```
+4. go to sub-dir and run example
