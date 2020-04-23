@@ -24,24 +24,24 @@ union_rdd = sc.emptyRDD()
 count = 0
 for method, properties, body in channel.consume(queue="receive-{}".format(job_id)):
 
-    if count == 10:
-        print(b''.join(union_rdd.collect()[:10]))
-        count = 0
-        union_rdd = sc.emptyRDD()
+    # if count == 12:
+    #    break
 
     # if(channel.get_waiting_message_count() == 0):
     #    break
     
-    print("Before decrypted: ", body[:10])
-    data = decrypt_blob(body, private_key)
-    print("After decrypted: ", len(data))
+    rdd_test = sc.emptyRDD()
+    if len(body) != 0:
+        print("Before decrypted: ", body[:10])
+        data = decrypt_blob(body, private_key)
+        print("After decrypted: ", data[:10])
+        rdd_test = sc.parallelize(data)
 
-    rdd_test = sc.parallelize(decrypt_blob(body, private_key), 1)
     union_rdd = union_rdd.union(rdd_test)
+    print("This is the collections result: ", len(union_rdd.collect()))
+    print("This is the partition result: ", union_rdd.getNumPartitions())
     channel.basic_ack(delivery_tag=method.delivery_tag)
-    count += 1
     # channel.basic_publish(exchange="", routing_key="send-{}".format(job_id), body=json.dumps(test_list))
-
 
 # for method, properties, body in channel.consume(queue="receive-{}".format(job_id)):
 #    print("Receive: ", body)
