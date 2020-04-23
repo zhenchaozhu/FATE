@@ -323,6 +323,7 @@ class TaskScheduler(object):
                 num_executors = spark_submit_config.get("num-executors", 2)
                 executor_memory = spark_submit_config.get("executor-memory", "1g")
                 executor_cores = spark_submit_config.get("executor-cores", 1)
+                total_executor_cores = spark_submit_config.get("total-executor-cores", 1) 
 
                 if deploy_mode not in ["client"]:
                     raise ValueError(f"deploy mode {deploy_mode} not supported")
@@ -337,6 +338,7 @@ class TaskScheduler(object):
                     f'--num-executors={num_executors}',
                     f'--executor-memory={executor_memory}',
                     f'--executor-cores={executor_cores}',
+                    f'--total-executor-cores={total_executor_cores}',
                     sys.modules[TaskExecutor.__module__].__file__,
                     '-j', job_id,
                     '-n', component_name,
