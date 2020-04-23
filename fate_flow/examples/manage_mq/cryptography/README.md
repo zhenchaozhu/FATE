@@ -14,3 +14,8 @@ dd if=/dev/zero of=testfile bs=1024 count=502400
 ```
 xdd -p -l100 testfile
 ```
+
+6. submit job
+```
+spark-submit --conf spark.pyspark.python=/usr/bin/python --conf spark.driver.memory=8g --conf spark.executor.memory=8g --master local[2] --py-files src/decrypt.py,src/encrypt.py --conf spark.driver.maxResultSize=0 encrypt_send.py
+```
