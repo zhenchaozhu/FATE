@@ -1,7 +1,6 @@
 import pyspark, pika
 from src import decrypt_blob, encrypt_blob
 
-
 def HandlePartition(messages, public_key, job_id, user, password):
     for message in messages:
         if len(message) != 0:
