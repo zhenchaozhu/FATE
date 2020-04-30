@@ -1,4 +1,4 @@
-import pyspark, pika
+import pyspark, pika, random 
 from src import decrypt_blob, encrypt_blob
 
 def HandlePartition(messages, public_key, job_id, user, password):
@@ -65,5 +65,20 @@ text_file = sc.textFile("./testfile/*", use_unicode=False)
 # flat_map = text_file.flatMap(FlatMapFunction2)
 encrypt_send_rdd = text_file.mapPartitions(lambda x: HandlePartition(x, public_key, job_id, user, password))
 
-print(encrypt_send_rdd.collect())
+encrypt_send_rdd.collect()
 # print("This is the flat map partitions: ", flat_map.getNumPartitions())
+
+credentials = pika.PlainCredentials(user, password)
+connection = pika.BlockingConnection(pika.ConnectionParameters("localhost", 5672, job_id, credentials))
+channel = connection.channel()
+
+flag = bytes(random.random())
+print("####### The end flag is: ", flag)
+channel.basic_publish(exchange='', routing_key="send-{}".format(job_id), body=flag)
+
+for method, properties, body in channel.consume(queue="receive-{}".format(job_id)):
+    if body == flag:
+        print("####### Received stop flag")
+        break;
+    
+

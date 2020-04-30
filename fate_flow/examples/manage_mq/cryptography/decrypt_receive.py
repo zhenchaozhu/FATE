@@ -25,15 +25,18 @@ user = lines[0].replace('\n', "")
 password = lines[1].replace('\n', "")
 
 credentials = pika.PlainCredentials(user, password)
-connection = pika.BlockingConnection(pika.ConnectionParameters("localhost", 5673, job_id, credentials))
+connection = pika.BlockingConnection(pika.ConnectionParameters("localhost", 5672, job_id, credentials))
 channel = connection.channel()
 
 union_rdd = sc.emptyRDD()
 
 count = 0
 for method, properties, body in channel.consume(queue="receive-{}".format(job_id)):
+    if len(union_rdd.collect()) % 5 == 0:
+        channel.basic_publish(exchange='', routing_key="send-{}".format(job_id), body=body)
+        channel.basic_ack(delivery_tag=method.delivery_tag)
+        continue
 
-    rdd_test = sc.emptyRDD()
     if len(body) != 0:
         rdd_test = sc.parallelize([body])
         ## print("#########This is the parallelize: ", rdd_test.collect()[:10])
