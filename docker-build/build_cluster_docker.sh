@@ -11,6 +11,8 @@ cd $BASEDIR
 WORKINGDIR=`pwd`
 source_dir=$(cd `dirname ${WORKINGDIR}`; pwd)
 
+source ${WORKINGDIR}/.env
+
 # fetch package info 
 cd ${source_dir}
 version=`grep "FATE=" .env | awk -F '=' '{print $2}'`
@@ -124,15 +126,13 @@ buildBase() {
   echo "START BUILDING BASE IMAGE"
   cd ${WORKINGDIR}
 
-  docker build --build-arg python_version=${python_version} -f docker/base/Dockerfile -t ${PREFIX}/base-image:${BASE_TAG} ${source_dir}/docker-build/docker/base
+  docker build --build-arg version=${version} -f docker/base/Dockerfile -t ${PREFIX}/base-image:${BASE_TAG} ${source_dir}/docker-build/docker/base
 
   rm ${source_dir}/docker-build/docker/base/requirements.txt
   echo "FINISH BUILDING BASE IMAGE"
 }
 
 buildModule() {
-  
-  
   [ -f ${source_dir}/docker-build/docker/modules/federation/fate-federation-*.tar.gz ] && rm ${source_dir}/docker-build/docker/modules/federation/fate-federation-*.tar.gz
   [ -f ${source_dir}/docker-build/docker/modules/proxy/fate-proxy-*.tar.gz ] && rm ${source_dir}/docker-build/docker/modules/proxy/fate-proxy-*.tar.gz
   [ -f ${source_dir}/docker-build/docker/modules/roll/eggroll-roll-*.tar.gz ] && rm ${source_dir}/docker-build/docker/modules/roll/eggroll-roll-*.tar.gz
