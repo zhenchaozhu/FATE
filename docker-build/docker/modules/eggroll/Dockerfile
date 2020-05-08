@@ -13,7 +13,7 @@ WORKDIR /data/projects/fate/eggroll/
 ARG version
 
 COPY eggroll ./
-COPY python ./
+COPY python /data/projects/fate/python
 
 ENV PYTHONPATH=/data/projects/fate/python:/data/projects/fate/eggroll/python
 ENV EGGROLL_HOME=/data/projects/fate/eggroll/
