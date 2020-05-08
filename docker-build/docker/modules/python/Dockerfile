@@ -8,7 +8,7 @@ WORKDIR /data/projects/fate/python
 ARG version
 
 COPY  python/ ./
-COPY  eggroll/ ./
+COPY  eggroll /data/projects/fate/eggroll
 COPY  fml_agent ./fml_agent
 COPY  start.sh ./
 
@@ -16,5 +16,7 @@ COPY  start.sh ./
 RUN echo "source /data/projects/python/venv/bin/activate" >> ~/.bashrc && \
     mkdir -p ./fml_agent/data
 
-ENV PYTHONPATH=/data/projects/fate/python
+ENV PYTHONPATH=/data/projects/fate/python:/data/projects/fate/eggroll/python
+ENV EGGROLL_HOME=/data/projects/fate/eggroll
+
 CMD sleep 5; source /data/projects/python/venv/bin/activate && bash ./start.sh
