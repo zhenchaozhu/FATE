@@ -18,10 +18,10 @@ from arch.api.utils import log_utils
 
 from fate_flow.entity.metric import Metric, MetricMeta
 from federatedml.feature.instance import Instance
+from federatedml.feature.sparse_vector import SparseVector
 from federatedml.param.union_param import UnionParam
 from federatedml.model_base import ModelBase
 from federatedml.statistic import data_overview
-from federatedml.util.data_io import make_schema
 
 LOGGER = log_utils.getLogger()
 
@@ -37,9 +37,9 @@ class Union(ModelBase):
     def _init_model(self, params):
         self.model_param = params
         self.allow_missing = params.allow_missing
-        self.feature_count = 0
         self.is_data_instance = False
         self.is_empty_feature = False
+        self.is_sparse = False
 
     @staticmethod
     def _keep_first(v1, v2):
@@ -73,15 +73,31 @@ class Union(ModelBase):
         if local_header != old_header:
             raise ValueError("Table headers do not match! Please check header.")
 
-    def check_feature_length(self, data_instance):
+    def check_feature_length(self, local_table, combined_table):
         if not self.is_data_instance or self.allow_missing:
             return
-        if len(data_instance.features) != self.feature_count:
-            raise ValueError("Feature length {} mismatch with header length {}.".format(len(data_instance.features), self.feature_count))
+        combined_table_len = data_overview.get_features_shape(combined_table)
+        local_table_len = data_overview.get_features_shape(local_table)
+        if  combined_table_len != local_table_len:
+            raise ValueError("Feature length {} mismatch length {}.".format(combined_table_len, local_table_len))
 
     def check_is_data_instance(self, table):
         entry = table.first()
-        self.is_data_instance = isinstance(entry[1], Instance)
+        return isinstance(entry[1], Instance)
+
+    def check_is_sparse(self, table):
+        entry = table.first()
+        if self.is_data_instance:
+            return isinstance(entry[1].features, SparseVector)
+        return False
+
+    def check_type_match(self, local_table):
+        local_is_data_instance = self.check_is_data_instance(local_table)
+        local_is_sparse = self.check_is_sparse(local_table)
+        if local_is_data_instance != self.is_data_instance:
+            raise ValueError("Type mismatch between DataInstance & non-DataInstance. Union aborted")
+        if local_is_sparse != self.is_sparse:
+            raise ValueError("Type mismatch between Sparse & non-Sparse tables. Union aborted")
 
     def fit(self, data):
         if not isinstance(data, dict):
@@ -103,7 +119,8 @@ class Union(ModelBase):
                 empty_count += 1
                 continue
             if combined_table is None:
-                self.check_is_data_instance(local_table)
+                self.is_data_instance = self.check_is_data_instance(local_table)
+                self.is_sparse = self.check_is_sparse(local_table)
             if self.is_data_instance:
                 self.is_empty_feature = data_overview.is_empty_feature(local_table)
                 if self.is_empty_feature:
@@ -115,17 +132,17 @@ class Union(ModelBase):
                 if self.is_data_instance:
                     combined_schema = local_table.schema
                     combined_table.schema = combined_schema
+
             else:
+                self.check_type_match(local_table)
                 self.check_schema_id(local_schema, combined_schema)
                 self.check_schema_label_name(local_schema, combined_schema)
                 self.check_schema_header(local_schema, combined_schema)
+                self.check_feature_length(local_table, combined_table)
+                old_schema = combined_table.schema
                 combined_table = combined_table.union(local_table, self._keep_first)
+                combined_table.schema = old_schema
 
-            # only check feature length if not empty
-            if self.is_data_instance and not self.is_empty_feature:
-                self.feature_count = len(combined_schema.get("header"))
-                LOGGER.debug("feature count: {}".format(self.feature_count))
-                combined_table.mapValues(self.check_feature_length)
 
         if combined_table is None:
             num_data = 0
@@ -146,4 +163,3 @@ class Union(ModelBase):
 
     def check_consistency(self):
         pass
-
