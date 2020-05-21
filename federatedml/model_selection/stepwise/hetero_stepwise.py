@@ -16,7 +16,7 @@
 
 from arch.api.utils import log_utils
 from fate_flow.entity.metric import Metric, MetricMeta
-from federatedml.evaluation.evaluation import IC, IC_Approx
+from federatedml.evaluation.metrics.regression_metric import IC, IC_Approx
 from federatedml.model_selection.stepwise.step import Step
 from federatedml.statistic import data_overview
 from federatedml.transfer_variable.transfer_class.stepwise_transfer_variable import StepwiseTransferVariable
@@ -292,6 +292,11 @@ class HeteroStepwise(object):
         metas["number_in"] = int(sum(host_mask) + sum(guest_mask))
         metas["direction"] = self.direction
         metas["n_count"] = int(self.n_count)
+
+        host_party_id = model.component_properties.host_party_idlist[0]
+        guest_party_id = model.component_properties.guest_partyid
+        metas["host_features_anonym"] = [f"host_{host_party_id}_{i}" for i in range(len(host_mask))]
+        metas["guest_features_anonym"] = [f"guest_{guest_party_id}_{i}" for i in range(len(guest_mask))]
 
         model_info = self.models_trained[step_best]
         loss = model_info.get_loss()

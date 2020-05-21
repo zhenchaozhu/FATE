@@ -13,14 +13,14 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 #
-
+import datetime
 import os
 import shutil
 import time
 
 from arch.api import session
 
-from arch.api.utils import log_utils, file_utils, dtable_utils
+from arch.api.utils import log_utils, file_utils, dtable_utils, version_control
 from fate_flow.entity.metric import Metric, MetricMeta
 
 LOGGER = log_utils.getLogger()
@@ -62,10 +62,15 @@ class Upload(object):
             raise Exception("Error number of partition, it should between %d and %d" % (0, self.MAX_PARTITION_NUM))
 
         session.init(mode=self.parameters['work_mode'])
-        data_table_count = self.save_data_table(table_name, namespace, head, job_id)
-        if 'tmp' in self.parameters["file"]:
-            shutil.rmtree(os.path.join(self.parameters["file"].split('tmp')[0], 'tmp'))
+        data_table_count = self.save_data_table(table_name, namespace, head, self.parameters.get('in_version', False))
         LOGGER.info("------------load data finish!-----------------")
+        # rm tmp file
+        try:
+            if '{}/fate_upload_tmp'.format(job_id) in self.parameters['file']:
+                LOGGER.info("remove tmp upload file")
+                shutil.rmtree(os.path.join(self.parameters["file"].split('tmp')[0], 'tmp'))
+        except:
+            LOGGER.info("remove tmp file failed")
         LOGGER.info("file: {}".format(self.parameters["file"]))
         LOGGER.info("total data_count: {}".format(data_table_count))
         LOGGER.info("table name: {}, table namespace: {}".format(table_name, namespace))
@@ -76,7 +81,7 @@ class Upload(object):
     def set_tracker(self, tracker):
         self.tracker = tracker
 
-    def save_data_table(self, dst_table_name, dst_table_namespace, head=True, job_id=None):
+    def save_data_table(self, dst_table_name, dst_table_namespace, head=True, in_version=False):
         input_file = self.parameters["file"]
         count = self.get_count(input_file)
         with open(input_file, 'r') as fin:
@@ -111,6 +116,9 @@ class Upload(object):
                     self.callback_metric(metric_name='data_access',
                                          metric_namespace='upload',
                                          metric_data=[Metric("count", data_table.count())])
+                    if in_version:
+                        version_log = "[AUTO] save data at %s." % datetime.datetime.now()
+                        version_control.save_version(name=dst_table_name, namespace=dst_table_namespace, version_log=version_log)
                     return data_table.count()
 
     def save_data_header(self, header_source, dst_table_name, dst_table_namespace):

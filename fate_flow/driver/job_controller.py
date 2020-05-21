@@ -16,17 +16,16 @@
 from fate_flow.utils.authentication_utils import authentication_check
 from federatedml.protobuf.generated import pipeline_pb2
 from arch.api.utils import dtable_utils
-from arch.api.utils.core import current_timestamp, json_dumps, json_loads
+from arch.api.utils.core_utils import current_timestamp, json_dumps, json_loads
 from arch.api.utils.log_utils import schedule_logger
 from fate_flow.db.db_models import Job
 from fate_flow.driver.task_executor import TaskExecutor
 from fate_flow.driver.task_scheduler import TaskScheduler
 from fate_flow.entity.constant_config import JobStatus, TaskStatus
 from fate_flow.entity.runtime_config import RuntimeConfig
-from fate_flow.manager.tracking import Tracking
+from fate_flow.manager.tracking_manager import Tracking
 from fate_flow.settings import BOARD_DASHBOARD_URL, USE_AUTHENTICATION
-from fate_flow.utils import detect_utils
-from fate_flow.utils import job_utils
+from fate_flow.utils import detect_utils, job_utils, job_controller_utils
 from fate_flow.utils.job_utils import generate_job_id, save_job_conf, get_job_dsl_parser, get_job_log_directory
 
 
@@ -111,10 +110,18 @@ class JobController(object):
         schedule_logger(job_id).info('{} {} get kill job {} {} command'.format(role, party_id, job_id, component_name))
         task_info = job_utils.get_task_info(job_id, role, party_id, component_name)
         tasks = job_utils.query_task(**task_info)
+        job = job_utils.query_job(job_id=job_id)
         for task in tasks:
             kill_status = False
             try:
-                kill_status = job_utils.kill_process(int(task.f_run_pid))
+                # task clean up
+                runtime_conf = json_loads(job[0].f_runtime_conf)
+                roles = ','.join(runtime_conf['role'].keys())
+                party_ids = ','.join([','.join([str(j) for j in i]) for i in runtime_conf['role'].values()])
+                # Tracking(job_id=job_id, role=role, party_id=party_id, task_id=task.f_task_id).clean_task(roles, party_ids)
+                # stop task
+                kill_status = job_utils.kill_task_executor_process(task)
+                # session stop
                 job_utils.start_session_stop(task)
             except Exception as e:
                 schedule_logger(job_id).exception(e)
@@ -144,11 +151,23 @@ class JobController(object):
                                                          task_info.get('f_status', '')))
 
     @staticmethod
+    def query_task_input_args(job_id, task_id, role, party_id, job_args, job_parameters, input_dsl, filter_type=None, filter_attr=None):
+        task_run_args = TaskExecutor.get_task_run_args(job_id=job_id, role=role, party_id=party_id,
+                                                       task_id=task_id,
+                                                       job_args=job_args,
+                                                       job_parameters=job_parameters,
+                                                       task_parameters={},
+                                                       input_dsl=input_dsl,
+                                                       if_save_as_task_input_data=False,
+                                                       filter_type=filter_type,
+                                                       filter_attr=filter_attr
+                                                       )
+        return task_run_args
+
+    @staticmethod
     def update_job_status(job_id, role, party_id, job_info, create=False):
-        job_tracker = Tracking(job_id=job_id, role=role, party_id=party_id)
         job_info['f_run_ip'] = RuntimeConfig.JOB_SERVER_HOST
         if create:
-            job_tracker.job_quantity_constraint()
             dsl = json_loads(job_info['f_dsl'])
             runtime_conf = json_loads(job_info['f_runtime_conf'])
             train_runtime_conf = json_loads(job_info['f_train_runtime_conf'])
@@ -160,6 +179,13 @@ class JobController(object):
                           job_runtime_conf=runtime_conf,
                           train_runtime_conf=train_runtime_conf,
                           pipeline_dsl=None)
+
+            job_parameters = runtime_conf['job_parameters']
+            job_tracker = Tracking(job_id=job_id, role=role, party_id=party_id,
+                                   model_id=job_parameters["model_id"],
+                                   model_version=job_parameters["model_version"])
+            if job_parameters.get("job_type", "") != "predict":
+                job_tracker.init_pipelined_model()
             roles = json_loads(job_info['f_roles'])
             partner = {}
             show_role = {}
@@ -196,10 +222,13 @@ class JobController(object):
                                 dataset[_role][_party_id][_data_type] = '{}.{}'.format(_data_location['namespace'],
                                                                                        _data_location['name'])
             job_tracker.log_job_view({'partner': partner, 'dataset': dataset, 'roles': show_role})
+        else:
+            job_tracker = Tracking(job_id=job_id, role=role, party_id=party_id)
         job_tracker.save_job_info(role=role, party_id=party_id, job_info=job_info, create=create)
 
     @staticmethod
     def save_pipeline(job_id, role, party_id, model_id, model_version):
+        schedule_logger(job_id).info('job {} on {} {} start to save pipeline'.format(job_id, role, party_id))
         job_dsl, job_runtime_conf, train_runtime_conf = job_utils.get_job_configuration(job_id=job_id, role=role,
                                                                                         party_id=party_id)
         job_parameters = job_runtime_conf.get('job_parameters', {})
@@ -214,12 +243,16 @@ class JobController(object):
         pipeline.inference_dsl = json_dumps(predict_dsl, byte=True)
         pipeline.train_dsl = json_dumps(job_dsl, byte=True)
         pipeline.train_runtime_conf = json_dumps(job_runtime_conf, byte=True)
+        pipeline.fate_version = RuntimeConfig.get_env("FATE")
+        pipeline.model_id = model_id
+        pipeline.model_version = model_version
         job_tracker = Tracking(job_id=job_id, role=role, party_id=party_id, model_id=model_id,
                                model_version=model_version)
-        job_tracker.save_output_model({'Pipeline': pipeline}, 'pipeline')
+        job_tracker.save_pipeline(pipelined_buffer_object=pipeline)
+        schedule_logger(job_id).info('job {} on {} {} save pipeline successfully'.format(job_id, role, party_id))
 
     @staticmethod
-    def clean_job(job_id,role, party_id, roles, party_ids):
+    def clean_job(job_id, role, party_id, roles, party_ids):
         schedule_logger(job_id).info('job {} on {} {} start to clean'.format(job_id, role, party_id))
         tasks = job_utils.query_task(job_id=job_id, role=role, party_id=party_id)
         for task in tasks:
@@ -234,9 +267,13 @@ class JobController(object):
         schedule_logger(job_id).info('job {} on {} {} clean done'.format(job_id, role, party_id))
 
     @staticmethod
+    def check_job_run(job_id, role,party_id, job_info):
+        return job_controller_utils.job_quantity_constraint(job_id, role, party_id, job_info)
+
+    @staticmethod
     def cancel_job(job_id, role, party_id, job_initiator):
         schedule_logger(job_id).info('{} {} get cancel waiting job {} command'.format(role, party_id, job_id))
-        jobs = job_utils.query_job(job_id=job_id, is_initiator=1)
+        jobs = job_utils.query_job(job_id=job_id)
         if jobs:
             job = jobs[0]
             job_runtime_conf = json_loads(job.f_runtime_conf)
@@ -250,10 +287,6 @@ class JobController(object):
             schedule_logger(job_id).info('cancel waiting job successfully, job id is {}'.format(job.f_job_id))
             return True
         else:
-            jobs = job_utils.query_job(job_id=job_id)
-            if jobs:
-                raise Exception(
-                    'role {} party id {} cancel waiting job {} failed, not is initiator'.format(role, party_id, job_id))
             raise Exception('role {} party id {} cancel waiting job failed, no find jod {}'.format(role, party_id, job_id))
 
 

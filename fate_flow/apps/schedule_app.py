@@ -16,7 +16,7 @@
 
 from flask import Flask, request
 
-from arch.api.utils.core import base64_decode
+from arch.api.utils.core_utils import base64_decode
 from fate_flow.driver.job_controller import JobController
 from fate_flow.driver.task_scheduler import TaskScheduler
 from fate_flow.settings import stat_logger
@@ -45,6 +45,15 @@ def job_status(job_id, role, party_id):
     JobController.update_job_status(job_id=job_id, role=role, party_id=int(party_id), job_info=request.json,
                                     create=False)
     return get_json_result(retcode=0, retmsg='success')
+
+
+@manager.route('/<job_id>/<role>/<party_id>/check', methods=['POST'])
+def job_check(job_id, role, party_id):
+    status = JobController.check_job_run(job_id, role, party_id, job_info=request.json)
+    if status:
+        return get_json_result(retcode=0, retmsg='success')
+    else:
+        return get_json_result(retcode=101, retmsg='The job running on the host side exceeds the maximum running amount')
 
 
 @manager.route('/<job_id>/<role>/<party_id>/<model_id>/<model_version>/save/pipeline', methods=['POST'])
@@ -84,7 +93,7 @@ def clean(job_id, role, party_id, roles, party_ids):
 @manager.route('/<job_id>/<component_name>/<task_id>/<role>/<party_id>/run', methods=['POST'])
 @request_authority_certification
 def run_task(job_id, component_name, task_id, role, party_id):
-    TaskScheduler.start_task(job_id, component_name, task_id, role, party_id, request.json)
+    TaskScheduler.run_task(job_id, component_name, task_id, role, party_id, request.json)
     return get_json_result(retcode=0, retmsg='success')
 
 
@@ -92,3 +101,14 @@ def run_task(job_id, component_name, task_id, role, party_id):
 def task_status(job_id, component_name, task_id, role, party_id):
     JobController.update_task_status(job_id, component_name, task_id, role, party_id, request.json)
     return get_json_result(retcode=0, retmsg='success')
+
+
+@manager.route('/<job_id>/<component_name>/<task_id>/<role>/<party_id>/input/args', methods=['POST'])
+def query_task_input_args(job_id, component_name, task_id, role, party_id):
+    task_input_args = JobController.query_task_input_args(job_id, task_id, role, party_id,
+                                                          job_args=request.json.get('job_args', {}),
+                                                          job_parameters=request.json.get('job_parameters', {}),
+                                                          input_dsl=request.json.get('input', {}),
+                                                          filter_type=['data'],
+                                                          filter_attr={'data': ['partitions']})
+    return get_json_result(retcode=0, retmsg='success', data=task_input_args)

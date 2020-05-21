@@ -25,8 +25,9 @@ from federatedml.model_base import ModelBase
 from federatedml.param.local_baseline_param import LocalBaselineParam
 from federatedml.protobuf.generated import lr_model_meta_pb2
 from federatedml.protobuf.generated import lr_model_param_pb2
-from federatedml.util import abnormal_detection
 from federatedml.statistic import data_overview
+from federatedml.util import abnormal_detection
+from federatedml.util.io_check import assert_io_num_rows_equal
 
 from sklearn.linear_model import LogisticRegression
 
@@ -42,8 +43,8 @@ class LocalBaseline(ModelBase):
         self.model_param = LocalBaselineParam()
         self.model_name = 'LocalBaseline'
         self.metric_type = ""
-        self.model_param_name = 'LogisticRegressionParam'
-        self.model_meta_name = 'LogisticRegressionMeta'
+        self.model_param_name = 'LocalBaselineParam'
+        self.model_meta_name = 'LocalBaselineMeta'
 
         # one_ve_rest parameter
         self.need_one_vs_rest = None
@@ -161,6 +162,7 @@ class LocalBaseline(ModelBase):
         }
         return result
 
+    @assert_io_num_rows_equal
     def _load_single_coef(self, result_obj):
         feature_shape = len(self.header)
         tmp_vars = np.zeros(feature_shape)
