@@ -24,6 +24,8 @@ from federatedml.tree import BoostingTree
 from federatedml.tree import HomoDecisionTreeClient
 from federatedml.tree import SecureBoostClientAggregator
 
+from federatedml.util.homo_label_encoder import HomoLabelEncoderClient
+
 from federatedml.feature.homo_feature_binning.homo_split_points import HomoFeatureBinningClient
 
 import functools
@@ -256,8 +258,8 @@ class HomoSecureBoostingTreeClient(BoostingTree):
         # sync label class and set y
         if self.task_type == consts.CLASSIFICATION:
             self.transfer_inst.local_labels.remote(local_classes, role=consts.ARBITER, suffix=('label_align', ))
-            new_label_mapping = self.transfer_inst.label_mapping.get(idx=0, suffix=('label_mapping', ))
-            self.classes_ = [new_label_mapping[k] for k in new_label_mapping]
+            new_classes, new_label_mapping = HomoLabelEncoderClient().label_alignment(local_classes)
+            self.classes_ = new_classes
             # set labels
             self.num_classes = len(new_label_mapping)
             LOGGER.debug('num_classes is {}'.format(self.num_classes))

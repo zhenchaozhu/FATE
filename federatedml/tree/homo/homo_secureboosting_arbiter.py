@@ -10,6 +10,8 @@ from typing import List
 from federatedml.tree.homo.homo_secureboosting_aggregator import SecureBoostArbiterAggregator
 from federatedml.feature.homo_feature_binning.homo_split_points import HomoFeatureBinningServer
 
+from federatedml.util.homo_label_encoder import HomoLabelEncoderArbiter
+
 from fate_flow.entity.metric import Metric
 from fate_flow.entity.metric import MetricMeta
 
@@ -101,7 +103,7 @@ class HomoSecureBoostingTreeArbiter(BoostingTree):
         self.tree_dim = 1
 
         if self.task_type == consts.CLASSIFICATION:
-            label_mapping = self.label_alignment()
+            label_mapping = HomoLabelEncoderArbiter().label_alignment()
             LOGGER.debug('label mapping is {}'.format(label_mapping))
             self.tree_dim = len(label_mapping) if len(label_mapping) > 2 else 1
 
