@@ -155,11 +155,12 @@ class FeatureHistogram(object):
 
     @staticmethod
     def accumulate_histogram(histograms):
-        for i in range(1, len(histograms)):
-            for j in range(len(histograms[i])):
-                histograms[i][j] += histograms[i - 1][j]
+        acc_hist = copy.deepcopy(histograms)
+        for i in range(1, len(acc_hist)):
+            for j in range(len(acc_hist[i])):
+                acc_hist[i][j] += acc_hist[i - 1][j]
 
-        return histograms
+        return acc_hist
 
     @staticmethod
     def calculate_histogram(data_bin, grad_and_hess,
@@ -191,11 +192,12 @@ class FeatureHistogram(object):
 
     @staticmethod
     def aggregate_histogram(histogram1, histogram2, node_map=None):
+        agg_hist = copy.deepcopy(histogram1)
         for i in range(len(histogram1)):
             for j in range(len(histogram1[i])):
-                histogram1[i][j] += histogram2[i][j]
+                agg_hist[i][j] += histogram2[i][j]
 
-        return histogram1
+        return agg_hist
 
     @staticmethod
     def batch_calculate_histogram(kv_iterator, bin_split_points=None,

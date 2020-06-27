@@ -25,6 +25,7 @@
 # Boostring Tree
 # =============================================================================
 import numpy as np
+import copy
 from fate_flow.entity.metric import Metric
 from fate_flow.entity.metric import MetricMeta
 from federatedml.param.boosting_tree_param import BoostingTreeParam
@@ -95,6 +96,7 @@ class BoostingTree(ModelBase):
 
     @staticmethod
     def data_format_transform(row):
+        transform_inst = copy.deepcopy(row)
         if type(row.features).__name__ != consts.SPARSE_VECTOR:
             feature_shape = row.features.shape[0]
             indices = []
@@ -110,16 +112,16 @@ class BoostingTree(ModelBase):
                     indices.append(i)
                     data.append(row.features[i])
 
-            row.features = SparseVector(indices, data, feature_shape)
+            transform_inst.features = SparseVector(indices, data, feature_shape)
         else:
             sparse_vec = row.features.get_sparse_vector()
             for key in sparse_vec:
                 if sparse_vec.get(key) == NoneType() or np.isnan(sparse_vec.get(key)):
                     sparse_vec[key] = NoneType()
 
-            row.features.set_sparse_vector(sparse_vec)
+            transform_inst.features.set_sparse_vector(sparse_vec)
 
-        return row
+        return transform_inst
 
     def data_alignment(self, data_inst):
         abnormal_detection.empty_table_detection(data_inst)
