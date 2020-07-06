@@ -17,7 +17,7 @@ guest_train_data = {"name": "breast_hetero_guest", "namespace": "experiment"}
 host_train_data = {"name": "breast_hetero_host", "namespace": "experiment"}
 
 input_0 = Input(name="train_data")
-input_1 = Input(name="validate_data")
+input_1 = Input(name="eval_data")
 print ("get input_0's init name {}".format(input_0.name))
 print ("get input_1's init name {}".format(input_1.name))
 
