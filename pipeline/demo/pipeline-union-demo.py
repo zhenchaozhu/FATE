@@ -13,10 +13,10 @@ guest = 9999
 hosts = [10000, 10001]
 arbiter = 10002
 
-guest_train_data = {"name": "breast_b", "namespace": "hetero"}
-host_train_data = [{"name": "breast_a", "namespace": "hetero"},
-                   {"name": "breast_a", "namespace": "hetero"},
-                   {"name": "breast_a", "namespace": "hetero"}]
+guest_train_data = {"name": "breast_hetero_guest", "namespace": "experiment"}
+host_train_data = [{"name": "breast_hetero_host", "namespace": "experiment"},
+                   {"name": "breast_hetero_host", "namespace": "experiment"},
+                   {"name": "breast_hetero_host", "namespace": "experiment"}]
 
 input_0 = Input(name="train_data_0")
 input_1 = Input(name="train_data_1")

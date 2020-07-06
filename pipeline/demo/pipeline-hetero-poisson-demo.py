@@ -12,8 +12,8 @@ guest = 9999
 host = 10000
 arbiter = 10002
 
-guest_train_data = {"name": "dvisits_b", "namespace": "dvisits"}
-host_train_data = {"name": "dvisits_a", "namespace": "dvisits"}
+guest_train_data = {"name": "dvisits_hetero_guest", "namespace": "dvisits"}
+host_train_data = {"name": "dvisits_hetero_host", "namespace": "dvisits"}
 
 input_0 = Input(name="train_data")
 print ("get input_0's init name {}".format(input_0.name))

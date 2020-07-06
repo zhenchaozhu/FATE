@@ -13,8 +13,8 @@ guest = 9999
 host = 10000
 arbiter = 10002
 
-guest_train_data = {"name": "breast_b", "namespace": "hetero"}
-host_train_data = {"name": "breast_a", "namespace": "hetero"}
+guest_train_data = {"name": "breast_hetero_guest", "namespace": "experiment"}
+host_train_data = {"name": "breast_hetero_host", "namespace": "experiment"}
 
 input_0 = Input(name="train_data")
 input_1 = Input(name="validate_data")
