@@ -17,15 +17,20 @@
 from arch.api.utils import log_utils
 from federatedml.nn.hetero_nn.hetero_nn_model import HeteroNNGuestModel
 from federatedml.nn.hetero_nn.hetero_nn_model import HeteroNNHostModel
-from federatedml.nn.hetero_nn.model.interactive_layer import InterActiveGuestDenseLayer
-from federatedml.nn.hetero_nn.model.interactive_layer import InteractiveHostDenseLayer
+# from federatedml.nn.hetero_nn.model.interactive_layer import InterActiveGuestDenseLayer
+# from federatedml.nn.hetero_nn.model.interactive_layer import InteractiveHostDenseLayer
+from federatedml.nn.hetero_nn.model.test.mock_interactive_layer import MockInteractiveHostDenseLayer, \
+    MockInterActiveGuestDenseLayer
 from federatedml.nn.homo_nn import nn_model
 from federatedml.nn.hetero_nn.backend.tf_keras.data_generator import KerasSequenceDataConverter
 from federatedml.nn.hetero_nn.model.hetero_nn_bottom_model import HeteroNNBottomModel
-from federatedml.nn.hetero_nn.model.hetero_nn_top_model import HeteroNNTopModel
+# from federatedml.nn.hetero_nn.model.hetero_nn_top_model import HeteroNNTopModel
 from federatedml.protobuf.generated.hetero_nn_model_meta_pb2 import HeteroNNModelMeta
 from federatedml.protobuf.generated.hetero_nn_model_meta_pb2 import OptimizerParam
 from federatedml.protobuf.generated.hetero_nn_model_param_pb2 import HeteroNNModelParam
+
+from federatedml.nn.hetero_nn.model.test.mock_models import MockBottomDenseModel, MockTopModel
+
 import json
 
 LOGGER = log_utils.getLogger()
@@ -70,6 +75,7 @@ class HeteroNNKerasGuestModel(HeteroNNGuestModel):
     def set_empty(self):
         self.is_empty = True
 
+    # Guest Side
     def train(self, x, y, epoch, batch_idx):
         if not self.is_empty:
             if self.bottom_model is None:
@@ -83,12 +89,14 @@ class HeteroNNKerasGuestModel(HeteroNNGuestModel):
         if self.interactive_model is None:
             self._build_interactive_model()
 
+        # get the output of the interactive layer in plain numpy
         interactive_output = self.interactive_model.forward(guest_bottom_output, epoch, batch_idx)
 
         if self.top_model is None:
             self.top_model_input_shape = int(interactive_output.shape[1])
             self._build_top_model()
 
+        # TODO: top model only need to take the gradient of the loss
         gradients = self.top_model.train_and_get_backward_gradient(interactive_output, y)
 
         guest_backward = self.interactive_model.backward(gradients, epoch, batch_idx)
@@ -223,12 +231,20 @@ class HeteroNNKerasGuestModel(HeteroNNGuestModel):
         self.bottom_model.restore_model(model_bytes)
 
     def _build_top_model(self):
-        self.top_model = HeteroNNTopModel(input_shape=self.top_model_input_shape,
-                                          optimizer=self.optimizer,
-                                          layer_config=self.top_nn_define,
-                                          loss=self.loss,
-                                          metrics=self.metrics,
-                                          model_builder=self.model_builder)
+        print("[DEBUG] HeteroNNKerasGuestModel._build_top_model")
+        # self.top_model = HeteroNNTopModel(input_shape=self.top_model_input_shape,
+        #                                   optimizer=self.optimizer,
+        #                                   layer_config=self.top_nn_define,
+        #                                   loss=self.loss,
+        #                                   metrics=self.metrics,
+        #                                   model_builder=self.model_builder)
+
+        self.top_model = MockTopModel(input_shape=self.top_model_input_shape,
+                                      optimizer=self.optimizer,
+                                      layer_config=self.top_nn_define,
+                                      loss=self.loss,
+                                      metrics=self.metrics,
+                                      model_builder=self.model_builder)
 
         self.top_model.set_data_converter(self.data_converter)
 
@@ -237,10 +253,13 @@ class HeteroNNKerasGuestModel(HeteroNNGuestModel):
         self.top_model.restore_model(model_bytes)
 
     def _build_interactive_model(self):
-        self.interactive_model = InterActiveGuestDenseLayer(self.hetero_nn_param,
-                                                            self.interactive_layer_define,
-                                                            model_builder=self.model_builder)
-
+        # self.interactive_model = InterActiveGuestDenseLayer(self.hetero_nn_param,
+        #                                                     self.interactive_layer_define,
+        #                                                     model_builder=self.model_builder)
+        #
+        # self.interactive_model.set_transfer_variable(self.transfer_variable)
+        # self.interactive_model.set_partition(self.partition)
+        self.interactive_model = MockInterActiveGuestDenseLayer(self.hetero_nn_param)
         self.interactive_model.set_transfer_variable(self.transfer_variable)
         self.interactive_model.set_partition(self.partition)
 
@@ -265,7 +284,7 @@ class HeteroNNKerasHostModel(HeteroNNHostModel):
 
         self.set_nn_meta(hetero_nn_param)
 
-        self.model_builder = nn_model.get_nn_builder(config_type=self.config_type)
+        # self.model_builder = nn_model.get_nn_builder(config_type=self.config_type)
         self.data_converter = KerasSequenceDataConverter()
 
         self.transfer_variable = None
@@ -277,10 +296,12 @@ class HeteroNNKerasHostModel(HeteroNNHostModel):
         self.hetero_nn_param = hetero_nn_param
 
     def _build_bottom_model(self):
-        self.bottom_model = HeteroNNBottomModel(input_shape=self.bottom_model_input_shape,
-                                                optimizer=self.optimizer,
-                                                layer_config=self.bottom_nn_define,
-                                                model_builder=self.model_builder)
+        print("[DEBUG] HeteroNNKerasHostModel.build_bottom_model")
+        # self.bottom_model = HeteroNNBottomModel(input_shape=self.bottom_model_input_shape,
+        #                                         optimizer=self.optimizer,
+        #                                         layer_config=self.bottom_nn_define,
+        #                                         model_builder=self.model_builder)
+        self.bottom_model = MockBottomDenseModel(input_dim=4, output_dim=3, optimizer=self.optimizer)
 
         self.bottom_model.set_data_converter(self.data_converter)
 
@@ -289,7 +310,8 @@ class HeteroNNKerasHostModel(HeteroNNHostModel):
         self.bottom_model.restore_model(model_bytes)
 
     def _build_interactive_model(self):
-        self.interactive_model = InteractiveHostDenseLayer(self.hetero_nn_param)
+        # self.interactive_model = InteractiveHostDenseLayer(self.hetero_nn_param)
+        self.interactive_model = MockInteractiveHostDenseLayer(self.hetero_nn_param)
 
         self.interactive_model.set_transfer_variable(self.transfer_variable)
         self.interactive_model.set_partition(self.partition)
@@ -357,6 +379,7 @@ class HeteroNNKerasHostModel(HeteroNNHostModel):
 
         return model_param
 
+    # Host Side
     def train(self, x, epoch, batch_idx):
         if self.bottom_model is None:
             self.bottom_model_input_shape = x.shape[1]
@@ -367,6 +390,7 @@ class HeteroNNKerasHostModel(HeteroNNHostModel):
 
         self.interactive_model.forward(host_bottom_output, epoch, batch_idx)
 
+        # host_gradient in plain numpy to be sent to host bottom model
         host_gradient = self.interactive_model.backward(epoch, batch_idx)
         self.bottom_model.backward(x, host_gradient)
 

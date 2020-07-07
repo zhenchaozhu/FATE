@@ -23,8 +23,10 @@ import numpy as np
 
 from arch.api.utils import log_utils
 from federatedml.nn.hetero_nn.backend.paillier_tensor import PaillierTensor
-from federatedml.nn.hetero_nn.backend.tf_keras.interactive.dense_model import GuestDenseModel
-from federatedml.nn.hetero_nn.backend.tf_keras.interactive.dense_model import HostDenseModel
+# from federatedml.nn.hetero_nn.backend.tf_keras.interactive.dense_model import GuestDenseModel
+# from federatedml.nn.hetero_nn.backend.tf_keras.interactive.dense_model import HostDenseModel
+from federatedml.nn.hetero_nn.backend.pytorch.interactive.dense_model import GuestDenseModel
+from federatedml.nn.hetero_nn.backend.pytorch.interactive.dense_model import EncryptedHostDenseModel
 from federatedml.nn.hetero_nn.util import random_number_generator
 from federatedml.protobuf.generated.hetero_nn_model_param_pb2 import InteractiveLayerParam
 from federatedml.secureprotol import PaillierEncrypt
@@ -68,14 +70,19 @@ class InterActiveGuestDenseLayer(object):
         self.partitions = partition
 
     def __build_model(self, restore_stage=False):
-        self.host_model = HostDenseModel()
+        # TODO: probably should use DI for creating host_dense_model and guest_dense_model
+
+        # self.host_model = HostDenseModel()
+        self.host_model = EncryptedHostDenseModel()
         self.host_model.build(self.host_input_shape, self.layer_config, self.model_builder, restore_stage)
         self.host_model.set_learning_rate(self.learning_rate)
 
+        # TODO: should set guest model to empty since we do not use guest dense model
         self.guest_model = GuestDenseModel()
         self.guest_model.build(self.guest_input_shape, self.layer_config, self.model_builder, restore_stage)
         self.guest_model.set_learning_rate(self.learning_rate)
 
+    # Guest interactive layer
     def forward(self, guest_input, epoch=0, batch=0):
         LOGGER.info("interactive layer start forward propagation of epoch {} batch {}".format(epoch, batch))
         encrypted_host_input = PaillierTensor(tb_obj=self.get_host_encrypted_forward_from_host(epoch, batch))
@@ -107,11 +114,14 @@ class InterActiveGuestDenseLayer(object):
         self.host_output = host_output
 
         LOGGER.info("start to get interactive layer's activation output of epoch {} batch {}".format(epoch, batch))
+
+        # Here actually perform the forward activation of the whole dense layer (logistic regression layer)
         activation_out = self.host_model.forward_activation(self.dense_output_data.numpy())
         LOGGER.info("end to get interactive layer's activation output of epoch {} batch {}".format(epoch, batch))
 
         return activation_out
 
+    # Guest interactive layer
     def backward(self, output_gradient, epoch, batch):
         LOGGER.debug("interactive layer start backward propagation of epoch {} batch {}".format(epoch, batch))
         activation_backward = self.host_model.backward_activation()[0]
@@ -140,6 +150,7 @@ class InterActiveGuestDenseLayer(object):
         weight_gradient = self.guest_model.get_weight_gradient(activation_gradient)
         self.guest_model.apply_update(weight_gradient)
 
+        # return gradient to be sent to guest bottom model
         return input_gradient
 
     def update_host(self, activation_gradient, weight_gradient, acc_noise):
@@ -150,6 +161,7 @@ class InterActiveGuestDenseLayer(object):
         self.host_model.update_weight(weight_gradient)
         self.host_model.update_bias(activation_gradient)
 
+        # return gradient to be sent to host bottom model
         return input_gradient
 
     def forward_interactive(self, encrypted_host_input, epoch, batch):
@@ -256,6 +268,7 @@ class InteractiveHostDenseLayer(object):
     def set_partition(self, partition):
         self.partitions = partition
 
+    # Host interactive layer
     def forward(self, host_input, epoch=0, batch=0):
         if batch >= len(self.train_encrypted_calculator):
             self.train_encrypted_calculator.append(self.generated_encrypted_calculator())
@@ -274,13 +287,16 @@ class InteractiveHostDenseLayer(object):
             self.output_unit = encrypted_guest_forward.shape[1]
             self.acc_noise = np.zeros((self.input_shape, self.output_unit))
 
-        """some bugs here"""
         decrypted_guest_forward_with_noise = decrypted_guest_forward + host_input * self.acc_noise
 
         self.send_decrypted_guest_forward_with_noise_to_guest(decrypted_guest_forward_with_noise.get_obj(), epoch,
                                                               batch)
 
     def backward(self, epoch, batch):
+        """
+           return the gradient to be back-propagated to host bottom model. The gradient is in the format of numpy
+        """
+
         encrypted_guest_weight_gradient = self.get_guest_encrypted_weight_gradient_from_guest(epoch, batch)
 
         LOGGER.info("decrypt weight gradient of epoch {} batch {}".format(epoch, batch))
