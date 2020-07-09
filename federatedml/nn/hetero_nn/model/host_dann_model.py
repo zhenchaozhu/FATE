@@ -296,41 +296,16 @@ class GlobalModelWrapper(object):
         output = torch.cat(output_list, dim=1)
         return output.detach().numpy()
 
-    def backward(self, data, grads):
-        data = torch.tensor(data).float()
-        grads = torch.tensor(grads).float()
-        result = self.predict(data)
-        result.backward(gradient=grads)
-
     def predict(self, data):
         return self._calculate_regional_output(data)
 
-    # def compute_classification_loss(self, data, label):
-    #     output = self._calculate_regional_output(data)
-    #     pred = self.classifier(output)
-    #     if self.loss_name == "CE":
-    #         label = label.flatten().long()
-    #     else:
-    #         # using BCELogitLoss
-    #         label = label.reshape(-1, 1).type_as(pred)
-    #     class_loss = self.classifier_criterion(pred, label)
-    #     return class_loss
-    #
-    # def calculate_classifier_correctness(self, data, label):
-    #     output = self._calculate_regional_output(data)
-    #     pred = self.classifier(output)
-    #     if self.loss_name == "CE":
-    #         # using CrossEntropyLoss
-    #         pred_prob = torch.softmax(pred.data, dim=1)
-    #         pos_prob = pred_prob[:, 1]
-    #         y_pred_tag = pred_prob.max(1)[1]
-    #     else:
-    #         # using BCELogitLoss
-    #         pos_prob = torch.sigmoid(pred.flatten())
-    #         y_pred_tag = torch.round(pos_prob).long()
-    #
-    #     correct_results_sum = y_pred_tag.eq(label).sum().item()
-    #     return correct_results_sum, y_pred_tag, pos_prob
+    def backward(self, x, grads):
+        x = torch.tensor(x).float()
+        grads = torch.tensor(grads).float()
+        result = self.predict(x)
+        result.backward(gradient=grads)
+
+        # TODO: update local models
 
     def _calculate_regional_output(self, data):
         wide_list, deep_par_list = self.partition_data_fn(data)
@@ -450,6 +425,9 @@ class RegionModelWrapper(object):
     def compute_total_loss(self, source_data, target_data, domain_source_labels, domain_target_labels,
                            **kwargs):
         alpha = kwargs["alpha"]
+
+        if alpha is None:
+            raise Exception("alpha should not be None")
 
         num_sample = source_data.shape[0] + target_data.shape[0]
         source_feat = self.extractor(source_data)

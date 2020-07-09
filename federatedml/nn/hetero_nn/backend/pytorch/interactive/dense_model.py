@@ -20,7 +20,7 @@
 import numpy as np
 
 from arch.api.utils import log_utils
-from federatedml.nn.hetero_nn.model.test.mock_models import MockDenseModel
+from federatedml.nn.hetero_nn.model.test.mock_models import MockInternalDenseModel
 
 LOGGER = log_utils.getLogger()
 
@@ -51,11 +51,8 @@ class DenseModel(object):
     def get_weight_gradient(self, delta):
         pass
 
-    # def set_sess(self, sess):
-    #     self.sess = sess
-
     def build(self, input_shape=None, layer_config=None, model_builder=None, restore_stage=False):
-        print(f"[DEBUG] build dense layer with input shape:{input_shape}")
+        LOGGER.debug(f"[DEBUG] build dense layer with input shape:{input_shape}")
         if not input_shape:
             if self.role == "host":
                 raise ValueError("host input is empty!")
@@ -63,30 +60,22 @@ class DenseModel(object):
                 self.is_empty_model = True
                 return
 
-        # self.model_builder = model_builder
         self.layer_config = layer_config
-        self.model = MockDenseModel(input_dim=input_shape, output_dim=1)
+        self.model = MockInternalDenseModel(input_dim=input_shape, output_dim=1)
 
-        # dense_layer = self.model.get_layer_by_index(0)
         if not restore_stage:
             self._init_model_weight(self.model)
-
-        # if self.role == "host":
-        #     self.activation_func = dense_layer.activation
-        #     self.__build_activation_layer_gradients_func(dense_layer)
 
     def export_model(self):
         if self.is_empty_model:
             return ''.encode()
 
-        layer_weights = [self.model_weight]
+        param = {"weight": self.model_weight.T}
         if self.bias is not None:
-            layer_weights.append(self.bias)
+            param["bias"] = self.bias
 
-        # TODO: refactor following line
-        self.model.set_layer_weights_by_index(0, layer_weights)
+        self.model.set_parameters(param)
         return self.model.export_model()
-        # return None
 
     def restore_model(self, model_bytes):
         if self.is_empty_model:
@@ -97,42 +86,22 @@ class DenseModel(object):
         self._init_model_weight(self.model, restore_stage=True)
 
     def _init_model_weight(self, model, restore_stage=False):
-        print("[DEBUG] DenseMode._init_model_weight")
+        LOGGER.debug("[DEBUG] DenseMode._init_model_weight")
         model_params = [param.tolist() for param in model.parameters()]
         self.model_weight = np.array(model_params[0]).T
         # self.model_shape = self.model_weight.shape
         self.bias = np.array(model_params[1])
 
-        print("[DEBUG] weight: ", self.model_weight, self.model_weight.shape)
-        print("[DEBUG] bias: ", self.bias, self.bias.shape)
-
-    # def __build_activation_layer_gradients_func(self, dense_layer):
-    #     shape = dense_layer.output_shape
-    #     dtype = dense_layer.get_weights()[0].dtype
-    #
-    #     input_data = tf.placeholder(shape=shape,
-    #                                 dtype=dtype,
-    #                                 name=self.activation_placeholder_name)
-    #
-    #     self.activation_gradient_func = gradients(dense_layer.activation(input_data), input_data)
+        LOGGER.debug(f"[DEBUG] weight: {self.model_weight}, {self.model_weight.shape}")
+        LOGGER.debug(f"[DEBUG] bias: {self.bias}, {self.bias.shape}")
 
     def forward_activation(self, input_data):
-        print("[DEBUG] DenseModel.forward_activation")
-
+        LOGGER.debug("[DEBUG] DenseModel.forward_activation")
         self.activation_input = input_data
-
-        # output = self.activation_func(input_data)
-        # if not isinstance(output, np.ndarray):
-        #     output = self.sess.run(output)
-
         return input_data
 
     def backward_activation(self):
-        print("[DEBUG] DenseModel.backward_activation")
-
-        # placeholder = tf.get_default_graph().get_tensor_by_name(":".join([self.activation_placeholder_name, "0"]))
-        # return self.sess.run(self.activation_gradient_func,
-        #                      feed_dict={placeholder: self.activation_input})
+        LOGGER.debug("[DEBUG] DenseModel.backward_activation")
         return [1.0]
 
     def get_weight(self):
@@ -154,6 +123,7 @@ class DenseModel(object):
 
 
 class GuestDenseModel(DenseModel):
+
     def __init__(self):
         super(GuestDenseModel, self).__init__()
         self.role = "guest"
@@ -258,7 +228,7 @@ class EncryptedHostDenseModel(DenseModel):
         self.role = "host"
 
     def forward_dense(self, x):
-        print("[DEBUG] EncryptedHostDenseModel.forward_dense")
+        LOGGER.debug("[DEBUG] EncryptedHostDenseModel.forward_dense")
         """
             x should be encrypted_host_input
         """
@@ -272,21 +242,21 @@ class EncryptedHostDenseModel(DenseModel):
         return output
 
     def get_input_gradient(self, delta, acc_noise=None):
-        print("[DEBUG] EncryptedHostDenseModel.get_input_gradient")
+        LOGGER.debug("[DEBUG] EncryptedHostDenseModel.get_input_gradient")
         error = delta * (self.model_weight + acc_noise).T
         return error
 
     def get_weight_gradient(self, delta):
-        print("[DEBUG] EncryptedHostDenseModel.get_weight_gradient")
+        LOGGER.debug("[DEBUG] EncryptedHostDenseModel.get_weight_gradient")
 
         delta_w = self.input.fast_matmul_2d(delta) / self.input.shape[0]
 
         return delta_w
 
     def update_weight(self, delta):
-        print("[DEBUG] EncryptedHostDenseModel.update_weight")
+        LOGGER.debug("[DEBUG] EncryptedHostDenseModel.update_weight")
         self.model_weight -= delta * self.lr
 
     def update_bias(self, delta):
-        print("[DEBUG] EncryptedHostDenseModel.update_bias")
+        LOGGER.debug("[DEBUG] EncryptedHostDenseModel.update_bias")
         self.bias -= np.mean(delta, axis=0) * self.lr
