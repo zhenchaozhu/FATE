@@ -46,7 +46,7 @@ class HeteroNNGuest(HeteroNNBase):
         self.batch_generator = batch_generator.Guest()
         self.data_keys = []
 
-        self.model_builder = None
+        # self.model_builder = None
         self.label_dict = {}
 
         self.model = None
@@ -82,13 +82,17 @@ class HeteroNNGuest(HeteroNNBase):
             self.model.set_empty()
 
         self._set_loss_callback_info()
+
+        kwargs = dict()
+        kwargs["epochs"] = self.epochs
+        kwargs["num_batch"] = len(self.data_x)
         cur_epoch = 0
         while cur_epoch < self.epochs:
             LOGGER.debug("cur epoch is {}".format(cur_epoch))
             epoch_loss = 0
 
             for batch_idx in range(len(self.data_x)):
-                self.model.train(self.data_x[batch_idx], self.data_y[batch_idx], cur_epoch, batch_idx)
+                self.model.train(self.data_x[batch_idx], self.data_y[batch_idx], cur_epoch, batch_idx, **kwargs)
 
                 self.reset_flowid()
                 metrics = self.model.evaluate(self.data_x[batch_idx], self.data_y[batch_idx], cur_epoch, batch_idx)
@@ -138,7 +142,15 @@ class HeteroNNGuest(HeteroNNBase):
         keys, test_x, test_y = self._load_data(data_inst)
         self.set_partition(data_inst)
 
+        # TODO: here should return a numpy array of predicted probability with shape (sample_num, 1)
         preds = self.model.predict(test_x)
+
+        LOGGER.debug(f"[DEBUG] guest predict pred prob: {keys}: {preds}")
+        LOGGER.debug(f"[DEBUG] guest predict pred prob: {type(keys)}: {type(preds)}")
+
+        a = zip(keys, preds)
+
+        LOGGER.debug(f"[DEBUG] a: {a}")
 
         predict_tb = session.parallelize(zip(keys, preds), include_key=True, partition=data_inst._partitions)
         if self.task_type == "regression":

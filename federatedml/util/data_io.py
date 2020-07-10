@@ -107,14 +107,14 @@ class DenseFeatureReader(object):
                 self.label_idx = header.split(self.delimitor, -1).index(self.label_name)
 
                 header_gen = header.split(self.delimitor, -1)[: self.label_idx] + \
-                             header.split(self.delimitor, -1)[self.label_idx + 1:]
+                             header.split(self.delimitor, -1)[self.label_idx + 1:] or None
             elif header:
                 header_list = header.split(self.delimitor, -1)
                 if self.label_name in header_list:
                     self.label_idx = header_list.index(self.label_name)
 
                     header_gen = header.split(self.delimitor, -1)[: self.label_idx] + \
-                                 header.split(self.delimitor, -1)[self.label_idx + 1:]
+                                 header.split(self.delimitor, -1)[self.label_idx + 1:] or None
                 else:
                     self.label_idx = None
                     header_gen = header.split(self.delimitor, -1)

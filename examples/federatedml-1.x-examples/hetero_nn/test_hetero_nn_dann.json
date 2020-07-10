@@ -20,14 +20,8 @@
         "data": {
           "train_data": [
             {
-              "name": "tiny_test_data_b_1",
-              "namespace": "fate_flow_test_tiny_test_data_1"
-            }
-          ],
-          "eval_data": [
-            {
-              "name": "tiny_test_data_b_1",
-              "namespace": "fate_flow_test_tiny_test_data_1"
+              "name": "breast_b",
+              "namespace": "hetero"
             }
           ]
         }
@@ -57,14 +51,8 @@
         "data": {
           "train_data": [
             {
-              "name": "tiny_test_data_a_1",
-              "namespace": "fate_flow_test_tiny_test_data_1"
-            }
-          ],
-          "eval_data": [
-            {
-              "name": "tiny_test_data_a_1",
-              "namespace": "fate_flow_test_tiny_test_data_1"
+              "name": "breast_a",
+              "namespace": "hetero"
             }
           ]
         }
@@ -95,7 +83,6 @@
         "learning_rate": 1.0
       },
       "early_stopping_rounds": 2,
-      "validation_freqs": 1,
       "use_first_metric_only": true,
       "loss": "binary_crossentropy",
       "metrics": [

@@ -3,6 +3,7 @@ import tempfile
 import numpy as np
 import torch
 import torch.nn as nn
+import torch.optim as optim
 from sklearn.metrics import roc_auc_score
 
 from arch.api.utils import log_utils
@@ -16,6 +17,21 @@ def get_data():
                      [0.22, 0.39, 0.14, 0.18]])
     label = np.array([[1], [0]])
     return data, label
+
+
+def adjust_learning_rate(lr_0, **kwargs):
+    epochs = kwargs["epochs"]
+    num_batch = kwargs["num_batch"]
+    curr_epoch = kwargs["current_epoch"]
+    batch_idx = kwargs["batch_idx"]
+    start_steps = curr_epoch * num_batch
+    total_steps = epochs * num_batch
+    p = float(batch_idx + start_steps) / total_steps
+
+    beta = 0.75
+    alpha = 10
+    lr = lr_0 / (1 + alpha * p) ** beta
+    return lr
 
 
 class MockInternalDenseModel(nn.Module):
@@ -48,6 +64,7 @@ class MockInternalDenseModel(nn.Module):
                     m.weight.copy_(torch.tensor(weight))
                     # m.bias.data.fill_(torch.tensor(bias))
                     m.bias.copy_(torch.tensor(bias))
+
         self.classifier.apply(init_weights)
 
     def set_parameters(self, parameters):
@@ -74,7 +91,7 @@ class MockInternalDenseModel(nn.Module):
 
 
 class MockBottomDenseModel(nn.Module):
-    def __init__(self, input_dim, output_dim, optimizer):
+    def __init__(self, input_dim, output_dim, optimizer_param):
         super(MockBottomDenseModel, self).__init__()
         msg = f"[DEBUG] create host bottom model with shape [{input_dim}, {output_dim}]"
         LOGGER.debug(msg)
@@ -99,13 +116,13 @@ class MockBottomDenseModel(nn.Module):
                 m.bias.data.fill_(0.01)
 
         self.classifier.apply(init_weights)
+        self._init_optimizer(optimizer_param)
 
-        self.optimizer = self._init_optimizer()
+    def _init_optimizer(self, optimizer_param):
+        self.original_learning_rate = optimizer_param.kwargs["learning_rate"]
+        # self.optimizer = optim.SGD(self.parameters(), lr=self.original_learning_rate, momentum=0.9)
 
-    def _init_optimizer(self):
-        return torch.optim.SGD(self.parameters(), lr=1.0)
-
-    def forward(self, x):
+    def forward(self, x, **kwargs):
         msg = "[DEBUG] MockBottomDenseModel.forward"
         LOGGER.debug(msg)
         print(msg)
@@ -121,10 +138,22 @@ class MockBottomDenseModel(nn.Module):
         x = torch.tensor(x).float()
         return self.classifier(x).detach().numpy()
 
-    def backward(self, x, grads):
+    def backward(self, x, grads, **kwargs):
         msg = "[DEBUG] MockBottomDenseModel.backward"
         LOGGER.debug(msg)
         print(msg)
+
+        curr_lr = adjust_learning_rate(lr_0=self.original_learning_rate, **kwargs)
+        msg = f"[DEBUG] kwargs:{kwargs}"
+        LOGGER.debug(msg)
+        print(msg)
+
+        msg = f"[DEBUG] adjusted learning rate:{curr_lr}"
+        LOGGER.debug(msg)
+        print(msg)
+
+        optimizer = optim.SGD(self.parameters(), lr=self.original_learning_rate)
+        optimizer.zero_grad()
 
         x = torch.tensor(x).float()
         grads = torch.tensor(grads).float()
@@ -140,8 +169,7 @@ class MockBottomDenseModel(nn.Module):
             LOGGER.debug(msg)
             print(msg)
 
-        self.optimizer.step()
-        self.optimizer.zero_grad()
+        optimizer.step()
 
         msg = "[DEBUG] Show MockBottomDenseModel params after optimized:"
         LOGGER.debug(msg)
@@ -207,8 +235,8 @@ class MockTopModel(object):
         print(msg)
 
         x = torch.tensor(x).float()
-        pos_prob = torch.sigmoid(x)
-        return pos_prob
+        pos_prob = torch.sigmoid(x.flatten())
+        return pos_prob.numpy().reshape(-1, 1)
 
     def evaluate(self, x, y):
         msg = "[DEBUG] top model start to evaluate"
@@ -219,10 +247,7 @@ class MockTopModel(object):
         y = torch.tensor(y).long()
         y = y.reshape(-1, 1).type_as(x)
         class_loss = self.classifier_criterion(x, y)
-        pos_prob = torch.sigmoid(x)
-        auc = roc_auc_score(y, pos_prob)
-
-        return {"AUC": auc, "ks": 0.0, "loss": class_loss.item()}
+        return {"loss": class_loss.item()}
 
     def export_model(self):
         return ''.encode()

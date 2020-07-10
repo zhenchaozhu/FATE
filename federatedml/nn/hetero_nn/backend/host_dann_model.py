@@ -1,10 +1,23 @@
-import json
-import os
+import tempfile
 
 import torch
 import torch.nn as nn
+import torch.optim as optim
 
-from utils import get_latest_timestamp
+
+def adjust_learning_rate(lr_0, **kwargs):
+    epochs = kwargs["epochs"]
+    num_batch = kwargs["num_batch"]
+    curr_epoch = kwargs["current_epoch"]
+    batch_idx = kwargs["batch_idx"]
+    start_steps = curr_epoch * num_batch
+    total_steps = epochs * num_batch
+    p = float(batch_idx + start_steps) / total_steps
+
+    beta = 0.75
+    alpha = 10
+    lr = lr_0 / (1 + alpha * p) ** beta
+    return lr
 
 
 def create_embedding(size):
@@ -19,10 +32,9 @@ def create_embeddings(embedding_meta_dict):
     return embedding_dict
 
 
-class GlobalModelWrapper(object):
-    def __init__(self, classifier, regional_model_list, embedding_dict, partition_data_fn, beta=1.0,
+class HostDannModel(object):
+    def __init__(self, regional_model_list, embedding_dict, partition_data_fn, optimizer_param, beta=1.0,
                  pos_class_weight=2.0, loss_name="CE"):
-        self.classifier = classifier
         self.regional_model_list = regional_model_list
         self.embedding_dict = embedding_dict
         self.loss_name = loss_name
@@ -34,21 +46,21 @@ class GlobalModelWrapper(object):
             raise RuntimeError(f"Does not support loss:{loss_name}")
         self.beta = beta
         self.partition_data_fn = partition_data_fn
+        self._init_optimizer(optimizer_param)
 
-    def print_parameters(self, print_all=False):
+    def _init_optimizer(self, optimizer_param):
+        self.original_learning_rate = optimizer_param.kwargs["learning_rate"]
+        self.optimizer = torch.optim.SGD(self.parameters(), lr=self.original_learning_rate)
+
+    def print_parameters(self):
         print("-" * 50)
-        print("Global models:")
-        for name, param in self.classifier.named_parameters():
-            # if param.requires_grad:
-            print(f"{name}: {param.data}, {param.requires_grad}")
-            # print(f"{name}: {param.requires_grad}")
-        if print_all:
-            print("Region models:")
-            for wrapper in self.regional_model_list:
-                wrapper.print_params()
-                # for param in wrapper.parameters():
-                #     if param.requires_grad:
-                #         print(f"{param.train_data}, {param.requires_grad}")
+        print("Region models:")
+        for wrapper in self.regional_model_list:
+            wrapper.print_params()
+            # for param in wrapper.parameters():
+            #     if param.requires_grad:
+            #         print(f"{param.train_data}, {param.requires_grad}")
+        if self.embedding_dict is not None:
             print("Embedding models:")
             for emb in self.embedding_dict.values():
                 for name, param in emb.named_parameters():
@@ -57,118 +69,56 @@ class GlobalModelWrapper(object):
                     print(f"{name}: {param.requires_grad}")
         print("-" * 50)
 
-    def get_global_classifier_parameters(self, get_tensor=False):
-        param_dict = dict()
-        for name, param in self.classifier.named_parameters():
-            # print("----->", name, param, param.requires_grad)
-            if param.requires_grad:
-                if get_tensor:
-                    param_dict[name] = param
-                else:
-                    param_dict[name] = param.data.tolist()
-        return param_dict
-
-    def load_model(self, root, task_id, task_meta_file_name="task_meta", timestamp=None):
-        task_folder = "task_" + task_id
-        task_folder_path = os.path.join(root, task_folder)
-        if not os.path.exists(task_folder_path):
-            raise FileNotFoundError(f"{task_folder_path} is not found.")
-        print(f"[INFO] load model from:{task_folder_path}")
-
-        if timestamp is None:
-            timestamp = get_latest_timestamp("models_checkpoint", task_folder_path)
-            print(f"[INFO] get latest timestamp {timestamp}")
-
-        model_checkpoint_folder = "models_checkpoint_" + str(timestamp)
-        model_checkpoint_folder = os.path.join(task_folder_path, model_checkpoint_folder)
-        if not os.path.exists(model_checkpoint_folder):
-            raise FileNotFoundError(f"{model_checkpoint_folder} is not found.")
-
-        task_meta_file_name = str(task_meta_file_name) + "_" + str(timestamp) + '.json'
-        task_meta_file_path = os.path.join(model_checkpoint_folder, task_meta_file_name)
-        if not os.path.exists(task_meta_file_path):
-            raise FileNotFoundError(f"{task_meta_file_path} is not found.")
-
-        with open(task_meta_file_path) as json_file:
-            print(f"[INFO] load task meta file from {task_meta_file_path}")
-            task_meta_dict = json.load(json_file)
-
-        # load global classifier
-        global_classifier_path = task_meta_dict["global_part"]["classifier"]
-        self.classifier.load_state_dict(torch.load(global_classifier_path))
-        print(f"[INFO] load global classifier from {global_classifier_path}")
-
-        # load embeddings
-        embedding_meta_dict = task_meta_dict["global_part"]["embeddings"]
-        for key, emb_path in embedding_meta_dict.items():
-            print(f"[INFO] load embedding of [{key}] from {emb_path}")
-            self.embedding_dict[key].load_state_dict(torch.load(emb_path))
-
-        # load region models
-        region_part_dict = task_meta_dict["region_part"]
-        num_region = len(region_part_dict)
-        assert num_region == len(self.regional_model_list)
-
-        for idx, region_wrapper in enumerate(self.regional_model_list):
-            region = "region_" + str(idx)
-            region_wrapper.load_model(region_part_dict[region]["models"])
-
-    def save_model(self, root, task_id, file_name="task_meta", timestamp=None):
-        """Save trained model."""
-
-        if timestamp is None:
-            raise RuntimeError("timestamp is missing.")
-
-        task_folder = "task_" + task_id
-        task_root_folder = os.path.join(root, task_folder)
-        if not os.path.exists(task_root_folder):
-            os.makedirs(task_root_folder)
-
-        model_checkpoint_folder = "models_checkpoint_" + str(timestamp)
-        model_checkpoint_folder = os.path.join(task_root_folder, model_checkpoint_folder)
-        if not os.path.exists(model_checkpoint_folder):
-            os.makedirs(model_checkpoint_folder)
-
-        extension = ".pth"
-
-        # save global model
-        global_classifier = "global_classifier_" + str(timestamp) + extension
-        global_classifier_path = os.path.join(model_checkpoint_folder, global_classifier)
-        model_meta = dict()
-        model_meta["global_part"] = dict()
-        model_meta["global_part"]["classifier"] = global_classifier_path
-        torch.save(self.classifier.state_dict(), global_classifier_path)
-        print(f"[INFO] saved global classifier model to: {global_classifier_path}")
-
+    def state_dict(self):
         # save embeddings
-        embedding_meta_dict = dict()
-        for key, emb in self.embedding_dict.items():
-            emb_file_name = "embedding_" + key + "_" + str(timestamp) + extension
-            emb_path = os.path.join(model_checkpoint_folder, emb_file_name)
-            torch.save(emb.state_dict(), emb_path)
-            print(f"[INFO] saved embedding of [{key}] to: {emb_path}")
-            embedding_meta_dict[key] = emb_path
-        model_meta["global_part"]["embeddings"] = embedding_meta_dict
+        model_state_dict = dict()
+
+        if self.embedding_dict is not None:
+            embeddings_state_dict = dict()
+            for key, emb in self.embedding_dict.items():
+                embeddings_state_dict[key] = emb.state_dict()
+            model_state_dict["embeddings"] = embeddings_state_dict
 
         # save region models
-        model_meta["region_part"] = dict()
+        model_state_dict["region_part"] = dict()
         for idx, wrapper in enumerate(self.regional_model_list):
             region = "region_" + str(idx)
-            res = wrapper.save_model(model_checkpoint_folder, region + "_" + str(timestamp) + extension)
-            model_meta["region_part"][region] = dict()
-            model_meta["region_part"][region]["order"] = idx
-            model_meta["region_part"][region]["models"] = res
+            model_state_dict["regional_models"][region] = dict()
+            model_state_dict["regional_models"][region]["order"] = idx
+            model_state_dict["regional_models"][region]["models"] = wrapper.state_dict()
 
-        file_name = str(file_name) + "_" + str(timestamp) + '.json'
-        file_full_name = os.path.join(model_checkpoint_folder, file_name)
-        with open(file_full_name, 'w') as outfile:
-            json.dump(model_meta, outfile)
+    def load_state_dict(self, model_state_dict):
+        # load embeddings
+        if self.embedding_dict is not None:
+            embeddings_state_dict = model_state_dict["embeddings"]
+            for key, emb_state_dict in embeddings_state_dict.items():
+                self.embedding_dict[key].load_state_dict(emb_state_dict)
 
-        return model_meta
+        # load region models
+        regional_models_dict = model_state_dict["regional_models"]
+        num_region = len(regional_models_dict)
+        assert num_region == len(self.regional_model_list)
 
-    def freeze_top(self, is_freeze=False):
-        for param in self.classifier.parameters():
-            param.requires_grad = not is_freeze
+        for idx, regional_model in enumerate(self.regional_model_list):
+            region = "region_" + str(idx)
+            regional_model.load_state_dict(regional_models_dict[region]["models"])
+
+    def export_model(self):
+        f = tempfile.TemporaryFile()
+        try:
+            torch.save(self.state_dict(), f)
+            f.seek(0)
+            model_bytes = f.read()
+            return model_bytes
+        finally:
+            f.close()
+
+    def restore_model(self, model_bytes):
+        f = tempfile.TemporaryFile()
+        f.write(model_bytes)
+        f.seek(0)
+        self.load_state_dict(torch.load(f))
+        f.close()
 
     def freeze_bottom(self, is_freeze=False, region_idx_list=None):
         # freeze region models
@@ -182,10 +132,11 @@ class GlobalModelWrapper(object):
                 for param in self.regional_model_list[region_idx].parameters():
                     param.requires_grad = not is_freeze
 
-        # freeze embedding
-        for emb in self.embedding_dict.values():
-            for param in emb.parameters():
-                param.requires_grad = not is_freeze
+        if self.embedding_dict is not None:
+            # freeze embedding
+            for emb in self.embedding_dict.values():
+                for param in emb.parameters():
+                    param.requires_grad = not is_freeze
 
     def freeze_bottom_extractors(self, is_freeze=False, region_idx_list=None):
         # freeze region models
@@ -220,25 +171,26 @@ class GlobalModelWrapper(object):
                 raise RuntimeError('Discriminator not set.')
 
     def change_to_train_mode(self):
-        self.classifier.train()
         for wrapper in self.regional_model_list:
             wrapper.change_to_train_mode()
-        for embedding in self.embedding_dict.values():
-            embedding.train()
+        if self.embedding_dict is not None:
+            for embedding in self.embedding_dict.values():
+                embedding.train()
 
     def change_to_eval_mode(self):
-        self.classifier.eval()
         for wrapper in self.regional_model_list:
             wrapper.change_to_eval_mode()
-        for embedding in self.embedding_dict.values():
-            embedding.eval()
+        if self.embedding_dict is not None:
+            for embedding in self.embedding_dict.values():
+                embedding.eval()
 
     def parameters(self):
-        param_list = list(self.classifier.parameters())
+        param_list = list()
         for wrapper in self.regional_model_list:
             param_list += wrapper.parameters()
-        for embedding in self.embedding_dict.values():
-            param_list += embedding.parameters()
+        if self.embedding_dict is not None:
+            for embedding in self.embedding_dict.values():
+                param_list += embedding.parameters()
         return param_list
 
     def _combine_features(self, feat_dict):
@@ -251,6 +203,9 @@ class GlobalModelWrapper(object):
         features_list = []
         embeddings = feat_dict.get("embeddings")
         if embeddings is not None:
+            if self.embedding_dict is None:
+                raise Exception("No embedding model is provided.")
+
             for key, feat in embeddings.items():
                 embedding = self.embedding_dict[key]
                 feat = feat.long()
@@ -265,6 +220,13 @@ class GlobalModelWrapper(object):
         comb_feat_tensor = torch.cat(features_list, dim=1)
         # print(f"comb_feat_tensor shape:{comb_feat_tensor.shape}")
         return comb_feat_tensor
+
+    def train_local_model(self, loss, **kwargs):
+        curr_lr = adjust_learning_rate(lr_0=self.original_learning_rate, **kwargs)
+        optimizer = optim.SGD(self.parameters(), lr=curr_lr, momentum=0.9)
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
 
     def forward(self, data, **kwargs):
 
@@ -290,7 +252,7 @@ class GlobalModelWrapper(object):
             output_list.append(output)
             total_domain_loss += domain_loss
 
-        # TODO: perform back-propagation based on the total_domain_loss
+        self.train_local_model(total_domain_loss, **kwargs)
 
         output_list = src_wide_list + output_list if len(src_wide_list) > 0 else output_list
         output = torch.cat(output_list, dim=1)
@@ -299,13 +261,16 @@ class GlobalModelWrapper(object):
     def predict(self, data):
         return self._calculate_regional_output(data)
 
-    def backward(self, x, grads):
+    def backward(self, x, grads, **kwargs):
         x = torch.tensor(x).float()
         grads = torch.tensor(grads).float()
         result = self.predict(x)
-        result.backward(gradient=grads)
 
-        # TODO: update local models
+        curr_lr = adjust_learning_rate(lr_0=self.original_learning_rate, **kwargs)
+        optimizer = optim.SGD(self.parameters(), lr=curr_lr, momentum=0.9)
+        optimizer.zero_grad()
+        result.backward(gradient=grads)
+        optimizer.step()
 
     def _calculate_regional_output(self, data):
         wide_list, deep_par_list = self.partition_data_fn(data)
@@ -330,7 +295,7 @@ class GlobalModelWrapper(object):
         return output_list
 
 
-class RegionModelWrapper(object):
+class RegionalModel(object):
 
     def __init__(self, extractor, aggregator, discriminator):
         self.extractor = extractor
@@ -341,40 +306,20 @@ class RegionModelWrapper(object):
         # self.classifier_criterion = nn.CrossEntropyLoss()
         self.discriminator_criterion = nn.CrossEntropyLoss()
 
-    def load_model(self, model_dict):
-        feature_aggregator_path = model_dict["feature_aggregator"]
-        feature_extractor = model_dict["feature_extractor"]
-        domain_discriminator = model_dict["domain_discriminator"]
-        self.aggregator.load_state_dict(torch.load(feature_aggregator_path))
-        self.extractor.load_state_dict(torch.load(feature_extractor))
-        self.discriminator.load_state_dict(torch.load(domain_discriminator))
-        print(f"[INFO] load aggregator model from {feature_aggregator_path}")
-        print(f"[INFO] load extractor model from {feature_extractor}")
-        print(f"[INFO] load discriminator model from {domain_discriminator}")
+    def state_dict(self):
+        state_dict = dict()
+        state_dict["extractor"] = self.extractor.state_dict()
+        state_dict["aggregator"] = self.aggregator.state_dict()
+        state_dict["discriminator"] = self.discriminator.state_dict()
+        return state_dict
 
-    def save_model(self, model_root, appendix):
-        feature_aggregator_name = "feature_aggregator_" + str(appendix)
-        feature_extractor_name = "feature_extractor_" + str(appendix)
-        domain_discriminator_name = "domain_discriminator_" + str(appendix)
-        feature_aggregator_path = os.path.join(model_root, feature_aggregator_name)
-        feature_extractor_path = os.path.join(model_root, feature_extractor_name)
-        domain_discriminator_path = os.path.join(model_root, domain_discriminator_name)
-        torch.save(self.aggregator.state_dict(), feature_aggregator_path)
-        torch.save(self.extractor.state_dict(), feature_extractor_path)
-        torch.save(self.discriminator.state_dict(), domain_discriminator_path)
-
-        task_meta = dict()
-        task_meta["feature_aggregator"] = feature_aggregator_path
-        task_meta["feature_extractor"] = feature_extractor_path
-        task_meta["domain_discriminator"] = domain_discriminator_path
-        print(f"[INFO] saved aggregator model to: {feature_aggregator_path}")
-        print(f"[INFO] saved extractor model to: {feature_extractor_path}")
-        print(f"[INFO] saved discriminator model to: {domain_discriminator_path}")
-        return task_meta
-
-    def check_discriminator_exists(self):
-        if self.discriminator_set is False:
-            raise RuntimeError('Discriminator not set.')
+    def load_state_dict(self, state_dict):
+        state_dict = state_dict.copy()
+        self.extractor.load_state_dict(state_dict["extractor"])
+        self.aggregator.load_state_dict(state_dict["aggregator"])
+        discriminator_state_dict = state_dict["discriminator"]
+        if self.discriminator is not None and discriminator_state_dict is not None:
+            self.discriminator.load_state_dict(discriminator_state_dict)
 
     def change_to_train_mode(self):
         self.extractor.train()

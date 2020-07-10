@@ -76,11 +76,13 @@ class HeteroNNHost(HeteroNNBase):
         self._build_model()
         self.prepare_batch_data(self.batch_generator, data_inst)
 
+        kwargs = dict()
+        kwargs["epochs"] = self.epochs
+        kwargs["num_batch"] = len(self.data_x)
         cur_epoch = 0
-
         while cur_epoch < self.epochs:
             for batch_idx in range(len(self.data_x)):
-                self.model.train(self.data_x[batch_idx], cur_epoch, batch_idx)
+                self.model.train(self.data_x[batch_idx], cur_epoch, batch_idx, **kwargs)
 
                 self.reset_flowid()
                 self.model.evaluate(self.data_x[batch_idx], cur_epoch, batch_idx)
