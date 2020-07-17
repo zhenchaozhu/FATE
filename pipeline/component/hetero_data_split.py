@@ -28,7 +28,7 @@ class HeteroDataSplit(Component, DataSplitParam):
 
         DataSplitParam.__init__(self, **new_kwargs)
         self.output = Output(self.name, has_model=False)
-        self._module_name = "Evaluation"
+        self._module_name = "HeteroDataSplit"
 
     def summary(self, data, metric_keyword):
         metrics = {}
