@@ -113,12 +113,16 @@ class SingleMetricInfo(object):
             col_name_map = {name: idx for idx, name in
                             enumerate(self.host_col_names[party_idx])}
             LOGGER.debug(f"col_name_map: {col_name_map}")
-            col_indices = [col_name_map[x] for x in select_col_names]
-            values = np.array(self.host_values[party_idx])[col_indices]
+            # col_indices = [col_name_map[x] for x in select_col_names]
+            values = []
+            for x in select_col_names:
+                if x in col_name_map:
+                    values.append(self.host_values[party_idx][col_name_map[x]])
+                else:
+                    values.append(0)
+
+            values = np.array(values)
         return list(values)
-
-
-
 
 
 class IsometricModel(object):
