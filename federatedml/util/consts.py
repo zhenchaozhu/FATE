@@ -34,6 +34,12 @@ ITERATIVEAFFINE = 'IterativeAffine'
 L1_PENALTY = 'L1'
 L2_PENALTY = 'L2'
 
+OT_HAUCK = 'OT_Hauck'
+CE_PH = 'CommutativeEncryptionPohligHellman'
+XOR = 'xor'
+AES = 'aes'
+
+FLOAT_ZERO = 1e-6
 FLOAT_ZERO = 1e-8
 OVERFLOW_THRESHOLD = 1e8
 
