@@ -40,7 +40,6 @@
             },
             "dataio_0": {
                 "with_label": [true],
-                "label_idx": [0],
                 "label_type": ["str"],
                 "output_format": ["dense"]
             }
@@ -53,10 +52,7 @@
             "commutative_encryption": "CommutativeEncryptionPohligHellman",
             "non_committing_encryption": "aes",
             "key_size": 1024,
-            "raw_retrieval": false,
-            "cv_param": {
-                "need_cv": false
-            }
+            "raw_retrieval": false
         }
     }
 }
