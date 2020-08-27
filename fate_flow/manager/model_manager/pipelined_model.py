@@ -107,6 +107,13 @@ class PipelinedModel(object):
                                 model_buffers["{}.{}:{}".format(component_name, model_alias, model_name)] = buffer_object_serialized_string
         return model_buffers
 
+    def set_model_path(self):
+        self.model_path = os.path.join(file_utils.get_project_base_directory(), "model_local_cache",
+                                       self.model_id, self.model_version)
+
+    def exists(self):
+        return os.path.exists(self.model_path)
+
     def save_pipeline(self, pipelined_buffer_object):
         buffer_object_serialized_string = pipelined_buffer_object.SerializeToString()
         if not buffer_object_serialized_string:

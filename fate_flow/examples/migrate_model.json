@@ -1,0 +1,22 @@
+{
+  "migrate_initiator": {
+    "role": "guest",
+    "party_id": 99
+  },
+  "local": {
+    "role": "guest",
+    "party_id": 9999,
+    "migrate_party_id": 99
+  },
+  "role": {
+    "guest": [9999],
+    "host": [10000]
+  },
+  "migrate_role": {
+    "guest": [99],
+    "host": [100]
+  },
+  "model_id": "guest-9999#host-10000#model",
+  "model_version": "2020061215063879320146",
+  "unify_model_version": "20200828123412345678"
+}
