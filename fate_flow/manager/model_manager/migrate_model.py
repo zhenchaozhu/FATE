@@ -24,8 +24,23 @@ from arch.api.utils.core_utils import json_dumps, json_loads
 from arch.api.utils.file_utils import get_project_base_directory
 
 
-def modify_secureboost(buffer: dict):
+def modify_secureboost(buffer: dict, src_role: dict, dst_role: dict):
     # TODO do something
+    param_key = None
+    for key in buffer:
+        if key.endswith("Param"):
+            param_key = key
+
+    param_buf = buffer[param_key]
+    for i in range(len(param_buf.trees_)):
+        for j in range(len(param_buf.trees_[i].tree_)):
+            sitename = param_buf.trees_[i].tree_[j].sitename
+            role, party_id = sitename.split(":")
+            new_party_id = dst_role[role][src_role[role].index(int(party_id))]
+            param_buf.trees_[i].tree_[j].sitename = role + ":" + str(new_party_id)
+
+    buffer[param_key] = param_buf
+
     return buffer
 
 
@@ -85,7 +100,7 @@ def migration(config_data: dict):
     secureboost_dict = model.read_component_model('secureboost_0', 'train')
 
     # modify process
-    modified_secureboost_dict = modify_secureboost(secureboost_dict)
+    modified_secureboost_dict = modify_secureboost(secureboost_dict, config_data["role"], config_data["migrate_role"])
     model.save_component_model('secureboost_0', 'HeteroSecureBoostingTreeGuestParam',
                                'train', modified_secureboost_dict)
 
