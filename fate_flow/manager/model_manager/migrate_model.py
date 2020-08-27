@@ -40,7 +40,6 @@ def modify_secureboost(buffer: dict, src_role: dict, dst_role: dict):
             param_buf.trees_[i].tree_[j].sitename = role + ":" + str(new_party_id)
 
     buffer[param_key] = param_buf
-
     return buffer
 
 
@@ -101,7 +100,7 @@ def migration(config_data: dict):
 
     # modify process
     modified_secureboost_dict = modify_secureboost(secureboost_dict, config_data["role"], config_data["migrate_role"])
-    model.save_component_model('secureboost_0', 'HeteroSecureBoostingTreeGuestParam',
+    model.save_component_model('secureboost_0', "HeteroSecureBoost",
                                'train', modified_secureboost_dict)
 
     print("Migrating model successfully. " \
@@ -202,6 +201,10 @@ def check_config(config: typing.Dict, required_arguments: typing.List):
 
 
 if __name__ == '__main__':
-    with open('/Users/izhfeng/PycharmProjects/FATE/fate_flow/examples/migrate_model.json', 'r') as fin:
+    import sys
+    path = sys.argv[1]
+    with open(path, "r") as fin:
         conf = json_loads(fin.read())
+    # with open('/Users/izhfeng/PycharmProjects/FATE/fate_flow/examples/migrate_model.json', 'r') as fin:
+    #     conf = json_loads(fin.read())
     migration(conf)
