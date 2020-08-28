@@ -24,8 +24,7 @@ from arch.api.utils.core_utils import json_dumps, json_loads
 from arch.api.utils.file_utils import get_project_base_directory
 
 
-def modify_secureboost(buffer: dict, src_role: dict, dst_role: dict):
-    # TODO do something
+def modify_secureboost(model: pipelined_model.PipelinedModel, buffer: dict, src_role: dict, dst_role: dict):
     param_key = None
     for key in buffer:
         if key.endswith("Param"):
@@ -40,7 +39,8 @@ def modify_secureboost(buffer: dict, src_role: dict, dst_role: dict):
             param_buf.trees_[i].tree_[j].sitename = role + ":" + str(new_party_id)
 
     buffer[param_key] = param_buf
-    return buffer
+    model.save_component_model('secureboost_0', 'HeteroSecureBoostingTreeGuestParam',
+                               'train', buffer)
 
 
 def migration(config_data: dict):
@@ -63,26 +63,21 @@ def migration(config_data: dict):
     if "pipeline.pipeline:Pipeline" not in model_data:
         raise Exception("Can not found pipeline file in model.")
 
-    model.model_id = gen_party_model_id(model_id=gen_model_id(config_data["migrate_role"]),
-                                        role=config_data["local"]["role"],
-                                        party_id=config_data["local"]["migrate_party_id"])
-    model.model_version = config_data["unify_model_version"]
+    migrate_model = pipelined_model.PipelinedModel(model_id=gen_party_model_id(model_id=gen_model_id(config_data["migrate_role"]),
+                                                                               role=config_data["local"]["role"],
+                                                                               party_id=config_data["local"]["migrate_party_id"]),
+                                                   model_version=config_data["unify_model_version"])
 
-    # Copy the older version of files of models to the new dirpath
-    previous_model_path = model.model_path
-    model.set_model_path()
-    if os.path.exists(model.model_path):
-        raise FileExistsError("Model {} {} file already exists.".format(model.model_id, model.model_version))
-    shutil.copytree(src=previous_model_path, dst=model.model_path)
+    # migrate_model.create_pipelined_model()
+    shutil.copytree(src=model.model_path, dst=migrate_model.model_path)
 
-    # obtain pipeline.pb object buffer
-    pipeline = model.read_component_model('pipeline', 'pipeline')['Pipeline']
+    pipeline = migrate_model.read_component_model('pipeline', 'pipeline')['Pipeline']
 
     # Utilize Pipeline_model collect model data. And modify related inner information of model
     train_runtime_conf = json_loads(pipeline.train_runtime_conf)
     train_runtime_conf["role"] = config_data["migrate_role"]
     train_runtime_conf["job_parameters"]["model_id"] = gen_model_id(train_runtime_conf["role"])
-    train_runtime_conf["job_parameters"]["model_version"] = model.model_version
+    train_runtime_conf["job_parameters"]["model_version"] = migrate_model.model_version
     train_runtime_conf["initiator"] = conf["migrate_initiator"]
 
     # update pipeline.pb file
@@ -91,23 +86,18 @@ def migration(config_data: dict):
     pipeline.model_version = bytes(train_runtime_conf["job_parameters"]["model_version"], "utf-8")
 
     # save updated pipeline.pb file
-    model.save_pipeline(pipeline)
-    shutil.copyfile(os.path.join(model.model_path, "pipeline.pb"),
-                    os.path.join(model.model_path, "variables", "data", "pipeline", "pipeline", "Pipeline"))
+    migrate_model.save_pipeline(pipeline)
+    shutil.copyfile(os.path.join(migrate_model.model_path, "pipeline.pb"),
+                    os.path.join(migrate_model.model_path, "variables", "data", "pipeline", "pipeline", "Pipeline"))
 
-    # obtain component secureboost_0 object buffer
-    secureboost_dict = model.read_component_model('secureboost_0', 'train')
+    secureboost_dict = migrate_model.read_component_model('secureboost_0', 'train')
 
-    # modify process
-    modified_secureboost_dict = modify_secureboost(secureboost_dict, config_data["role"], config_data["migrate_role"])
-    model.save_component_model('secureboost_0', "HeteroSecureBoost",
-                               'train', modified_secureboost_dict)
-
+    modify_secureboost(model=migrate_model, buffer=secureboost_dict, src_role=config_data["role"], dst_role=config_data["migrate_role"])
     print("Migrating model successfully. " \
           "The configuration of model has been modified automatically. " \
           "New model id is: {}, model version is: {}. " \
           "Model files can be found at '{}'.".format(train_runtime_conf["job_parameters"]["model_id"],
-                                                     model.model_version, model.model_path))
+                                                     migrate_model.model_version, migrate_model.model_path))
 
 
 def compare_roles(request_conf_roles: dict, run_time_conf_roles: dict):
@@ -202,9 +192,6 @@ def check_config(config: typing.Dict, required_arguments: typing.List):
 
 if __name__ == '__main__':
     import sys
-    path = sys.argv[1]
-    with open(path, "r") as fin:
+    with open(sys.argv[1], "r") as fin:
         conf = json_loads(fin.read())
-    # with open('/Users/izhfeng/PycharmProjects/FATE/fate_flow/examples/migrate_model.json', 'r') as fin:
-    #     conf = json_loads(fin.read())
     migration(conf)
