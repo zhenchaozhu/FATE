@@ -1,0 +1,55 @@
+{
+  "data": [
+    {
+      "file": "examples/data/breast_hetero_guest.csv",
+      "head": 1,
+      "partition": 16,
+      "work_mode": 0,
+      "table_name": "breast_hetero_guest",
+      "namespace": "experiment",
+      "role": "guest_0"
+    },
+    {
+      "file": "examples/data/breast_hetero_host.csv",
+      "head": 1,
+      "partition": 16,
+      "work_mode": 0,
+      "table_name": "breast_hetero_host",
+      "namespace": "experiment",
+      "role": "host_0"
+    }
+  ],
+  "tasks": {
+    "cross": {
+      "conf": "../dsl/hetero_pearson/test_cross_pearson_correlation.json",
+      "dsl": "./dsl/test_pearson_correlation_dsl.json"
+    },
+    "sole_guest": {
+      "conf": "../dsl/hetero_pearson/test_sole_guest_pearson_correlation.json",
+      "dsl": "./dsl/test_pearson_correlation_dsl.json"
+    },
+    "sole_host": {
+      "conf": "../dsl/hetero_pearson/test_sole_host_pearson_correlation.json",
+      "dsl": "./dsl/test_pearson_correlation_dsl.json"
+    },
+    "sole_both": {
+      "conf": "../dsl/hetero_pearson/test_sole_both_pearson_correlation.json",
+      "dsl": "./dsl/test_pearson_correlation_dsl.json"
+    },
+    "mix_random": {
+      "conf": "../dsl/hetero_pearson/test_mix_random_pearson_correlation.json",
+      "dsl": "./dsl/test_pearson_correlation_dsl.json"
+    }
+  },
+  "pipeline_tasks": {
+    "hetero_pearson": {
+      "script": "../pipeline/hetero_pearson/pipeline-hetero-pearson.py"
+    },
+    "hetero_pearson_host_only": {
+      "script": "../pipeline/hetero_pearson/pipeline-hetero-pearson-host-only.py"
+    },
+    "hetero_pearson_sole": {
+      "script": "../pipeline/hetero_pearson/pipeline-hetero-pearson-sole.py"
+    }
+  }
+}

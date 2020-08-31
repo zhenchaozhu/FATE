@@ -14,15 +14,30 @@
 #  limitations under the License.
 #
 
-
 from pipeline.component.hetero_pearson import HeteroPearson
-from pipeline.demo.hetero_pearson._common_component import run_pipeline, get_config
 
-if __name__ == "__main__":
+from ._common_component import run_pipeline, get_config
+
+
+def main(config="../../config.yaml", namespace=""):
+    if isinstance(config, str):
+        config = Config.load(config)
     hetero_pearson = HeteroPearson(name="hetero_pearson_0", column_indexes=-1, cross_parties=False)
-    pipeline = run_pipeline(config=get_config(),
+    pipeline = run_pipeline(config=config,
                             guest_data={"name": "breast_hetero_guest", "namespace": "experiment"},
                             host_data={"name": "breast_hetero_host", "namespace": "experiment"},
-                            hetero_pearson=hetero_pearson)
+                            hetero_pearson=hetero_pearson,
+                            namespace=namespace)
     print(pipeline.get_component("hetero_pearson_0").get_model_param())
     print(pipeline.get_component("hetero_pearson_0").get_summary())
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser("PIPELINE DEMO")
+    parser.add_argument("-config", type=str,
+                        help="config file")
+    args = parser.parse_args()
+    if args.config is not None:
+        main(args.config)
+    else:
+        main()

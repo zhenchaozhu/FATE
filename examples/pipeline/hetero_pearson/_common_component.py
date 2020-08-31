@@ -24,16 +24,10 @@ from pipeline.demo.util.demo_util import Config
 from pipeline.interface.data import Data
 
 
-def get_config():
-    default_config = Path(__file__).parent.joinpath("../config.yaml").resolve()
-    parser = argparse.ArgumentParser("PIPELINE DEMO")
-    parser.add_argument("-config", type=str, default=f"{default_config}", help="config file")
-    config = Config(parser.parse_args().config)
-    return config
-
-
-def run_pipeline(config, guest_data, host_data, hetero_pearson):
+def run_pipeline(config, guest_data, host_data, hetero_pearson, namespace):
     arbiter = config.arbiter
+    guest_data["namespace"] = f"{guest_data['namespace']}{namespace}"
+    host_data["namespace"] = f"{host_data['namespace']}{namespace}"
 
     pipeline = PipeLine() \
         .set_initiator(role='guest', party_id=config.guest) \
