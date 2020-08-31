@@ -42,17 +42,34 @@
         }
     ],
     "tasks": {
-        "single_layer": {
-            "conf": "./pytorch_homo_dnn_single_layer.json",
-            "dsl": "./test_homo_nn_train_then_predict.json"
+        "tf_single_layer": {
+            "conf": "../dsl/homo_nn/test_homo_dnn_single_layer.json",
+            "dsl": "../dsl/homo_nn/test_homo_nn_dsl.json.json"
         },
-        "multi_layer": {
-            "conf": "./pytorch_homo_dnn_multi_layer.json",
-            "dsl": "./test_homo_nn_train_then_predict.json"
+        "tf_multi_layer": {
+            "conf": "../dsl/homo_nn/test_homo_dnn_multi_layer.json",
+            "dsl": "../dsl/homo_nn/test_homo_nn_dsl.json.json"
         },
-        "multi_label": {
-            "conf": "./pytorch_homo_dnn_multi_label.json",
-            "dsl": "./test_homo_nn_train_then_predict.json"
+        "tf_multi_label": {
+            "conf": "../dsl/homo_nn/test_homo_dnn_multi_label.json",
+            "dsl": "../dsl/homo_nn/test_homo_nn_dsl.json.json"
+        },
+        "torch_single_layer": {
+            "conf": "../dsl/homo_nn/pytorch_homo_dnn_single_layer.json",
+            "dsl": "../dsl/homo_nn/test_homo_nn_dsl.json.json"
+        },
+        "torch_multi_layer": {
+            "conf": "../dsl/homo_nn/pytorch_homo_dnn_multi_layer.json",
+            "dsl": "../dsl/homo_nn/test_homo_nn_dsl.json.json"
+        },
+        "torch_multi_label": {
+            "conf": "../dsl/homo_nn/pytorch_homo_dnn_multi_label.json",
+            "dsl": "../dsl/homo_nn/test_homo_nn_dsl.json.json"
+        }
+    },
+    "pipeline_tasks": {
+        "homo_lr": {
+            "script": "../pipeline/homo_nn/pipeline-homo-nn.py"
         }
     }
 }
