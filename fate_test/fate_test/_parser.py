@@ -235,6 +235,50 @@ class FinalStatus(object):
     rest_dependency: typing.List[str] = field(default_factory=list)
 
 
+@dataclass
+class BenchmarkJob(object):
+    job_name: str
+    script_path: Path
+    conf_path: Path
+
+
+@dataclass
+class BenchmarkPair(object):
+    pair_name: str
+    jobs: typing.List[BenchmarkJob]
+
+
+@dataclass
+class BenchmarkSuite(object):
+    dataset: typing.List[Data]
+    pairs: typing.List[BenchmarkPair]
+
+    @staticmethod
+    def load(path: Path):
+        with path.open("r") as f:
+            testsuite_config = json.load(f, object_hook=DATA_JSON_HOOK.hook)
+
+        dataset = []
+        for d in testsuite_config.get("data"):
+            dataset.append(Data.load(d, path))
+
+        pairs = []
+        for pair_name, pair_configs in testsuite_config.items():
+            if pair_name == "data":
+                continue
+            jobs = []
+            for job_name, job_configs in pair_configs:
+                script_path = path.parent.joinpath(job_configs["script"]).resolve()
+                if job_configs.get("conf"):
+                    conf_path = path.parent.joinpath(job_configs["conf"]).resolve()
+                else:
+                    conf_path = ""
+                jobs.append(BenchmarkJob(job_name=job_name, script_path=script_path, conf_path=conf_path))
+            pairs.append(BenchmarkPair(pair_name=pair_name, jobs=jobs))
+        suite = BenchmarkSuite(dataset=dataset, pairs=pairs)
+        return suite
+
+
 def _namespace_hook(namespace):
     def _hook(d):
         if d is None:

@@ -23,7 +23,7 @@ from sklearn.metrics import roc_auc_score, precision_score, accuracy_score, reca
 from examples.util.config import Config
 
 
-def main(param="./match_config.yaml"):
+def main(param="./lr_config.yaml"):
     # obtain config
     #
     param = Config.load_from_file(param)
@@ -55,6 +55,7 @@ if __name__ == "__main__":
     parser.add_argument("-param", type=str,
                         help="config file for params")
     args = parser.parse_args()
-    if args.config is not None:
+    if args.param is not None:
         main(args.param)
-    main()
+    else:
+        main()

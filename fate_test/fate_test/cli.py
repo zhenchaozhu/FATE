@@ -17,6 +17,7 @@ import time
 import uuid
 import importlib
 from datetime import timedelta
+from inspect import signature
 from pathlib import Path
 
 import click
@@ -26,7 +27,7 @@ from fate_test._config import create_config, priority_config
 from fate_test._flow_client import SubmitJobResponse, QueryJobResponse, JobProgress, DataProgress, \
     UploadDataResponse
 from fate_test._io import set_logger, LOGGER, echo
-from fate_test._parser import Testsuite, Config, DATA_JSON_HOOK, CONF_JSON_HOOK, DSL_JSON_HOOK, JSON_STRING
+from fate_test._parser import Testsuite, BenchmarkSuite, Config, DATA_JSON_HOOK, CONF_JSON_HOOK, DSL_JSON_HOOK, JSON_STRING
 
 
 @click.group(name="cli")
@@ -135,7 +136,7 @@ def run_suite(replace, data_namespace_mangling, config, include, exclude, glob,
 
 
 @LOGGER.catch
-@cli.command(name="match")
+@cli.command(name="benchmark-metrics")
 @click.option('--data-namespace-mangling', type=bool, is_flag=True, default=False,
               help="mangling data namespace")
 @click.option('-i', '--include', required=True, type=click.Path(exists=True), multiple=True, metavar="<include>",
@@ -152,9 +153,9 @@ def run_suite(replace, data_namespace_mangling, config, include, exclude, glob,
               help="skip double check")
 @click.option("--skip-data", is_flag=True, default=False,
               help="skip uploading data specified in match")
-def run_match(replace, data_namespace_mangling, config, include, exclude, glob, skip_data, yes):
+def run_benchmark(replace, data_namespace_mangling, config, include, exclude, glob, skip_data, yes):
     """
-    process testsuite
+    process benchmark suite
     """
     namespace = time.strftime('%Y%m%d%H%M%S')
     # prepare output dir and json hooks
@@ -182,7 +183,10 @@ def run_match(replace, data_namespace_mangling, config, include, exclude, glob, 
                         _upload_data(client, suite)
                     except Exception as e:
                         raise RuntimeError(f"exception occur while uploading data for {suite.path}") from e
-                # @TODO: run match tasks
+                try:
+                    _run_benchmark_pairs(config_inst, suite, namespace, data_namespace_mangling)
+                except Exception as e:
+                    raise RuntimeError(f"exception occur while running benchmark jobs for {suite.path}") from e
 
                 if not skip_data:
                     _delete_data(client, suite)
@@ -219,7 +223,7 @@ def _prepare(data_namespace_mangling, namespace, replace):
     DSL_JSON_HOOK.add_replace_hook(replace)
 
 
-def _load_testsuites(includes, excludes, glob, suffix="testsuite.json"):
+def _load_testsuites(includes, excludes, glob, suffix="testsuite.json", suite_type="testsuite"):
     def _find_testsuite_files(path):
         if isinstance(path, str):
             path = Path(path)
@@ -253,7 +257,10 @@ def _load_testsuites(includes, excludes, glob, suffix="testsuite.json"):
                     suite_paths.add(suite_path)
     suites = []
     for suite_path in suite_paths:
-        suites.append(Testsuite.load(suite_path.resolve()))
+        if suite_type == "testsuite":
+            suites.append(Testsuite.load(suite_path.resolve()))
+        elif suite_type == "benchmark":
+            suites.append(BenchmarkSuite.load(suite_path.resolve()))
     return suites
 
 
@@ -358,19 +365,44 @@ def _submit_job(clients: Clients, suite: Testsuite):
             echo.stdout_newline()
 
 
+def _load_module_from_script(script_path):
+    module_name = str(script_path).split("/", -1)[-1].split(".")[0]
+    loader = importlib.machinery.SourceFileLoader(module_name, str(script_path))
+    spec = importlib.util.spec_from_loader(loader.name, loader)
+    module = importlib.util.module_from_spec(spec)
+    return module
+
+
 def _run_pipeline_jobs(config: Config, suite: Testsuite, namespace: str, data_namespace_mangling: bool):
     # pipeline demo goes here
     for pipeline_job in suite.pipeline_jobs:
         job_name, script_path = pipeline_job.job_name, pipeline_job.script_path
-        module_name = str(script_path).split("/", -1)[-1].split(".")[0]
-        loader = importlib.machinery.SourceFileLoader(module_name, str(script_path))
-        spec = importlib.util.spec_from_loader(loader.name, loader)
-        demo_module = importlib.util.module_from_spec(spec)
-        loader.exec_module(demo_module)
+        module = _load_module_from_script(script_path)
         if data_namespace_mangling:
-            demo_module.main(config, f"_{namespace}")
+            module.main(config, f"_{namespace}")
         else:
-            demo_module.main(config)
+            module.main(config)
+
+
+def _run_benchmark_pairs(config: Config, suite: BenchmarkSuite, namespace: str, data_namespace_mangling: bool):
+    # pipeline demo goes here
+    for pair in suite.pairs:
+        for job in pair.jobs:
+            job_name, script_path, conf_path = job.job_name, job.script_path, job.conf_path
+            param = Config.load_from_file
+            module = _load_module_from_script(script_path)
+            input_params = signature(module).parameters
+            # local script
+            if len(input_params) == 1:
+                module.main(param=conf_path)
+            # pipeline script
+            elif len(input_params) == 3:
+                if data_namespace_mangling:
+                    module.main(config=config, param=param, namespace=f"_{namespace}")
+                else:
+                    module.main(config=config, param=param)
+            else:
+                module.main()
 
 
 def main():
