@@ -28,7 +28,7 @@ from fate_test._flow_client import SubmitJobResponse, QueryJobResponse, JobProgr
     UploadDataResponse
 from fate_test._io import set_logger, LOGGER, echo
 from fate_test._parser import Testsuite, BenchmarkSuite, Config, DATA_JSON_HOOK, CONF_JSON_HOOK, DSL_JSON_HOOK, JSON_STRING
-
+from fate_test.utils import match_metrics
 
 @click.group(name="cli")
 def cli():
@@ -153,21 +153,22 @@ def run_suite(replace, data_namespace_mangling, config, include, exclude, glob,
               help="skip double check")
 @click.option("--skip-data", is_flag=True, default=False,
               help="skip uploading data specified in match")
-def run_benchmark(replace, data_namespace_mangling, config, include, exclude, glob, skip_data, yes):
+def run_benchmark(data_namespace_mangling, config, include, exclude, glob, skip_data, tol, yes):
     """
     process benchmark suite
     """
     namespace = time.strftime('%Y%m%d%H%M%S')
     # prepare output dir and json hooks
-    _prepare(data_namespace_mangling, namespace, replace)
+    _prepare(data_namespace_mangling, namespace, replace={})
 
     echo.welcome()
     config_inst = _parse_config(config)
     echo.echo(f"testsuite namespace: {namespace}", fg='red')
     echo.echo("loading testsuites:")
-    suites = _load_testsuites(includes=include, excludes=exclude, glob=glob)
+    suites = _load_testsuites(includes=include, excludes=exclude, glob=glob,
+                              suffix="match.json", suite_type="benchmark")
     for suite in suites:
-        echo.echo(f"\tdataset({len(suite.dataset)}) jobs({len(suite.jobs)}) {suite.path}")
+        echo.echo(f"\tdataset({len(suite.dataset)}) benchmark pairs({len(suite.pairs)}) {suite.path}")
     if not yes and not click.confirm("running?"):
         return
     with Clients(config_inst) as client:
@@ -176,7 +177,7 @@ def run_benchmark(replace, data_namespace_mangling, config, include, exclude, gl
             try:
                 start = time.time()
                 echo.echo(f"[{i + 1}/{len(suites)}]start at {time.strftime('%Y-%m-%d %X')} {suite.path}", fg='red')
-                suite.reflash_configs(config_inst)
+                # suite.reflash_configs(config_inst)
 
                 if not skip_data:
                     try:
@@ -184,7 +185,7 @@ def run_benchmark(replace, data_namespace_mangling, config, include, exclude, gl
                     except Exception as e:
                         raise RuntimeError(f"exception occur while uploading data for {suite.path}") from e
                 try:
-                    _run_benchmark_pairs(config_inst, suite, namespace, data_namespace_mangling)
+                    _run_benchmark_pairs(config_inst, suite, tol, namespace, data_namespace_mangling)
                 except Exception as e:
                     raise RuntimeError(f"exception occur while running benchmark jobs for {suite.path}") from e
 
@@ -384,9 +385,10 @@ def _run_pipeline_jobs(config: Config, suite: Testsuite, namespace: str, data_na
             module.main(config)
 
 
-def _run_benchmark_pairs(config: Config, suite: BenchmarkSuite, namespace: str, data_namespace_mangling: bool):
+def _run_benchmark_pairs(config: Config, suite: BenchmarkSuite, tol: float, namespace: str, data_namespace_mangling: bool):
     # pipeline demo goes here
     for pair in suite.pairs:
+        results = {}
         for job in pair.jobs:
             job_name, script_path, conf_path = job.job_name, job.script_path, job.conf_path
             param = Config.load_from_file
@@ -394,15 +396,17 @@ def _run_benchmark_pairs(config: Config, suite: BenchmarkSuite, namespace: str, 
             input_params = signature(module).parameters
             # local script
             if len(input_params) == 1:
-                module.main(param=conf_path)
+                metric = module.main(param=conf_path)
             # pipeline script
             elif len(input_params) == 3:
                 if data_namespace_mangling:
-                    module.main(config=config, param=param, namespace=f"_{namespace}")
+                    metric = module.main(config=config, param=param, namespace=f"_{namespace}")
                 else:
-                    module.main(config=config, param=param)
+                    metric = module.main(config=config, param=param)
             else:
-                module.main()
+                metric = module.main()
+            results[job_name] = metric
+        match_metrics(evaluate=True, tol=tol, **results)
 
 
 def main():

@@ -65,12 +65,13 @@ def evaluate_almost_equal(metrics, results, abs_tol=None):
     return eval_summary
 
 
-def match_metrics(evaluate, **results):
+def match_metrics(evaluate, tol, **results):
     """
     Get metrics
     Parameters
     ----------
     evaluate: bool, whether to evaluate metrics are almost equal, and include compare results in output report
+    tol: float, max tolerance of absolute error to consider two metrics are almost equal
     results: dict of model name: metrics
 
     Returns
@@ -89,7 +90,7 @@ def match_metrics(evaluate, **results):
     print(table.get_string(title="Match Results"))
 
     if evaluate:
-        eval_summary = evaluate_almost_equal(common_metrics, filtered_results)
+        eval_summary = evaluate_almost_equal(common_metrics, filtered_results, tol)
         eval_table = PrettyTable()
         eval_table.field_names = ["Metric", "All Match"]
         for metric, v in eval_summary.items():

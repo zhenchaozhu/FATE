@@ -252,6 +252,7 @@ class BenchmarkPair(object):
 class BenchmarkSuite(object):
     dataset: typing.List[Data]
     pairs: typing.List[BenchmarkPair]
+    path: Path
 
     @staticmethod
     def load(path: Path):
@@ -267,7 +268,7 @@ class BenchmarkSuite(object):
             if pair_name == "data":
                 continue
             jobs = []
-            for job_name, job_configs in pair_configs:
+            for job_name, job_configs in pair_configs.items():
                 script_path = path.parent.joinpath(job_configs["script"]).resolve()
                 if job_configs.get("conf"):
                     conf_path = path.parent.joinpath(job_configs["conf"]).resolve()
@@ -275,7 +276,7 @@ class BenchmarkSuite(object):
                     conf_path = ""
                 jobs.append(BenchmarkJob(job_name=job_name, script_path=script_path, conf_path=conf_path))
             pairs.append(BenchmarkPair(pair_name=pair_name, jobs=jobs))
-        suite = BenchmarkSuite(dataset=dataset, pairs=pairs)
+        suite = BenchmarkSuite(dataset=dataset, pairs=pairs, path=path)
         return suite
 
 
