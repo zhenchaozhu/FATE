@@ -191,6 +191,7 @@ def run_benchmark(data_namespace_mangling, config, include, exclude, glob, skip_
 
                 if not skip_data:
                     _delete_data(client, suite)
+                echo.echo(f"[{i + 1}/{len(suites)}]elapse {timedelta(seconds=int(time.time() - start))}", fg='red')
 
             except Exception:
                 exception_id = uuid.uuid1()
@@ -198,7 +199,6 @@ def run_benchmark(data_namespace_mangling, config, include, exclude, glob, skip_
                 LOGGER.exception(f"exception id: {exception_id}")
             finally:
                 echo.stdout_newline()
-
     echo.farewell()
 
 
@@ -370,19 +370,20 @@ def _load_module_from_script(script_path):
     module_name = str(script_path).split("/", -1)[-1].split(".")[0]
     loader = importlib.machinery.SourceFileLoader(module_name, str(script_path))
     spec = importlib.util.spec_from_loader(loader.name, loader)
-    module = importlib.util.module_from_spec(spec)
-    return module
+    mod = importlib.util.module_from_spec(spec)
+    loader.exec_module(mod)
+    return mod
 
 
 def _run_pipeline_jobs(config: Config, suite: Testsuite, namespace: str, data_namespace_mangling: bool):
     # pipeline demo goes here
     for pipeline_job in suite.pipeline_jobs:
         job_name, script_path = pipeline_job.job_name, pipeline_job.script_path
-        module = _load_module_from_script(script_path)
+        mod = _load_module_from_script(script_path)
         if data_namespace_mangling:
-            module.main(config, f"_{namespace}")
+            mod.main(config, f"_{namespace}")
         else:
-            module.main(config)
+            mod.main(config)
 
 
 def _run_benchmark_pairs(config: Config, suite: BenchmarkSuite, tol: float, namespace: str, data_namespace_mangling: bool):
@@ -391,12 +392,12 @@ def _run_benchmark_pairs(config: Config, suite: BenchmarkSuite, tol: float, name
         results = {}
         for job in pair.jobs:
             job_name, script_path, conf_path = job.job_name, job.script_path, job.conf_path
-            param = Config.load_from_file
+            param = Config.load_from_file(conf_path)
             module = _load_module_from_script(script_path)
-            input_params = signature(module).parameters
+            input_params = signature(module.main).parameters
             # local script
             if len(input_params) == 1:
-                metric = module.main(param=conf_path)
+                metric = module.main(param=param)
             # pipeline script
             elif len(input_params) == 3:
                 if data_namespace_mangling:

@@ -30,7 +30,7 @@ from examples.util.config import Config
 def main(config="../config.yaml", param="./lr_config.yaml", namespace=""):
     # obtain config
 
-    if isinstance(config, str):
+    if not isinstance(config, Config):
         config = Config.load(config)
     parties = config.parties
     guest = parties.guest[0]
@@ -39,7 +39,7 @@ def main(config="../config.yaml", param="./lr_config.yaml", namespace=""):
     backend = config.backend
     work_mode = config.work_mode
 
-    if isinstance(param, str):
+    if not isinstance(param, dict):
         param = Config.load_from_file(param)
     """
     guest = 9999
@@ -115,7 +115,11 @@ if __name__ == "__main__":
     parser.add_argument("-param", type=str,
                         help="config file for params")
     args = parser.parse_args()
-    if args.config is not None:
+    if args.config is not None and args.param is not None:
         main(args.config, args.param)
+    elif args.config is None:
+        main(param=args.param)
+    elif args.param is None:
+        main(config=args.config)
     else:
         main()

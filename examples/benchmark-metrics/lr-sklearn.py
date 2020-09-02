@@ -25,8 +25,8 @@ from examples.util.config import Config
 
 def main(param="./lr_config.yaml"):
     # obtain config
-    #
-    param = Config.load_from_file(param)
+    if not isinstance(param, dict):
+        param = Config.load_from_file(param)
     data = param["data"]
     idx = param["idx"]
     label_name = param["label_name"]
@@ -37,16 +37,15 @@ def main(param="./lr_config.yaml"):
     lm = LogisticRegression(max_iter=20)
     lm_fit = lm.fit(X, y)
     y_pred = lm_fit.predict(X)
-    y_prob = lm_fit.predict_proba(X)[:, 1]
-    try:
-        auc_score = roc_auc_score(y, y_prob)
-    except:
-        print(f"no auc score available")
-        return
+    # y_prob = lm_fit.predict_proba(X)[:, 1]
+    # try:
+    #    auc_score = roc_auc_score(y, y_prob)
+    #except:
+    #    print(f"no auc score available")
     recall = recall_score(y, y_pred, average=None)
     pr = precision_score(y, y_pred, average=None)
     acc = accuracy_score(y, y_pred)
-    result = {"auc": auc_score, "recall": recall, "precision": pr, "accuracy": acc}
+    result = {"recall": recall, "precision": pr, "accuracy": acc}
     return result
 
 
