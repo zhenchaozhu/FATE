@@ -30,7 +30,8 @@ from examples.util.config import Config
 
 def main(config="../../config.yaml", namespace=""):
     # obtain config
-    config = Config(config)
+    if not isinstance(config, Config):
+        config = Config(config)
     parties = config.parties
     guest = parties.guest[0]
     host = parties.host[0]

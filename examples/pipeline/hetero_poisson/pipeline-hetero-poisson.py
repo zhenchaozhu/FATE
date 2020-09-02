@@ -29,7 +29,7 @@ from examples.util.config import Config
 
 def main(config="../../config.yaml", namespace=""):
     # obtain config
-    if isinstance(config, str):
+    if not isinstance(config, Config):
         config = Config.load(config)
     parties = config.parties
     guest = parties.guest[0]

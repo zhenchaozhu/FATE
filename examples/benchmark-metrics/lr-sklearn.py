@@ -18,7 +18,7 @@ import argparse
 
 import pandas
 from sklearn.linear_model.logistic import LogisticRegression
-from sklearn.metrics import roc_auc_score, precision_score, accuracy_score, recall_score
+from sklearn.metrics import precision_score, accuracy_score, recall_score
 
 from examples.util.config import Config
 
