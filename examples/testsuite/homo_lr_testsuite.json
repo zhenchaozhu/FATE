@@ -55,8 +55,8 @@
             "dsl": "../dsl/homo_logistic_regression/test_homolr_train_job_dsl.json"
         },
         "train_eval": {
-            "conf": "test_homolr_train_eval_job_conf.json",
-            "dsl": "test_homolr_train_eval_job_dsl.json"
+            "conf": "../dsl/homo_logistic_regression/test_homolr_train_eval_job_conf.json",
+            "dsl": "../dsl/homo_logistic_regression/test_homolr_train_eval_job_dsl.json"
         },
         "cv": {
             "conf": "../dsl/homo_logistic_regression/test_homolr_cv_job_conf.json",
@@ -71,8 +71,8 @@
             "dsl": "../dsl/homo_logistic_regression/test_homolr_train_job_dsl.json"
         },
         "lr-predict": {
-            "conf": "test_predict_conf.json",
-            "deps": "train"
+            "conf": "../dsl/homo_logistic_regression/test_predict_conf.json",
+            "deps": "../dsl/homo_logistic_regression/homo_train"
         }
     },
     "pipeline_tasks": {

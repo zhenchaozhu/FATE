@@ -22,23 +22,23 @@
   "tasks": {
     "cross": {
       "conf": "../dsl/hetero_pearson/test_cross_pearson_correlation.json",
-      "dsl": "./dsl/test_pearson_correlation_dsl.json"
+      "dsl": "../dsl/hetero_pearson/test_pearson_correlation_dsl.json"
     },
     "sole_guest": {
       "conf": "../dsl/hetero_pearson/test_sole_guest_pearson_correlation.json",
-      "dsl": "./dsl/test_pearson_correlation_dsl.json"
+      "dsl": "../dsl/hetero_pearson/test_pearson_correlation_dsl.json"
     },
     "sole_host": {
       "conf": "../dsl/hetero_pearson/test_sole_host_pearson_correlation.json",
-      "dsl": "./dsl/test_pearson_correlation_dsl.json"
+      "dsl": "../dsl/hetero_pearson/test_pearson_correlation_dsl.json"
     },
     "sole_both": {
       "conf": "../dsl/hetero_pearson/test_sole_both_pearson_correlation.json",
-      "dsl": "./dsl/test_pearson_correlation_dsl.json"
+      "dsl": "../dsl/hetero_pearson/test_pearson_correlation_dsl.json"
     },
     "mix_random": {
       "conf": "../dsl/hetero_pearson/test_mix_random_pearson_correlation.json",
-      "dsl": "./dsl/test_pearson_correlation_dsl.json"
+      "dsl": "../dsl/hetero_pearson/test_pearson_correlation_dsl.json"
     }
   },
   "pipeline_tasks": {
