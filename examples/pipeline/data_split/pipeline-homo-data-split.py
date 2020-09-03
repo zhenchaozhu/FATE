@@ -27,14 +27,13 @@ from examples.util.config import Config
 
 def main(config="../../config.yaml", namespace=""):
     # obtain config
-    if not isinstance(config, Config):
+    if isinstance(config, str):
         config = Config.load(config)
     parties = config.parties
     guest = parties.guest[0]
     host = parties.host[0]
     backend = config.backend
     work_mode = config.work_mode
-
 
     guest_train_data = {"name": "breast_homo_guest", "namespace": f"experiment{namespace}"}
     host_train_data = {"name": "breast_homo_host", "namespace": f"experiment{namespace}"}

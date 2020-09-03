@@ -16,7 +16,7 @@
 
 from pipeline.component.hetero_pearson import HeteroPearson
 
-from ._common_component import run_pipeline, get_config
+from ._common_component import run_pipeline
 
 
 def main(config="../../config.yaml", namespace=""):

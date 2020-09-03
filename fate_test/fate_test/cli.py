@@ -395,19 +395,19 @@ def _run_benchmark_pairs(config: Config, suite: BenchmarkSuite, tol: float, name
         for job in pair.jobs:
             job_name, script_path, conf_path = job.job_name, job.script_path, job.conf_path
             param = Config.load_from_file(conf_path)
-            module = _load_module_from_script(script_path)
-            input_params = signature(module.main).parameters
+            mod = _load_module_from_script(script_path)
+            input_params = signature(mod.main).parameters
             # local script
             if len(input_params) == 1:
-                metric = module.main(param=param)
+                metric = mod.main(param=param)
             # pipeline script
             elif len(input_params) == 3:
                 if data_namespace_mangling:
-                    metric = module.main(config=config, param=param, namespace=f"_{namespace}")
+                    metric = mod.main(config=config, param=param, namespace=f"_{namespace}")
                 else:
-                    metric = module.main(config=config, param=param)
+                    metric = mod.main(config=config, param=param)
             else:
-                metric = module.main()
+                metric = mod.main()
             results[job_name] = metric
         match_metrics(evaluate=True, tol=tol, **results)
 

@@ -34,7 +34,7 @@ from examples.util.config import Config
 
 def main(config="../../config.yaml", namespace=""):
     # obtain config
-    if not isinstance(config, Config):
+    if isinstance(config, str):
         config = Config.load(config)
     parties = config.parties
     guest = parties.guest[0]

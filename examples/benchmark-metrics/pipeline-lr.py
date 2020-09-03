@@ -15,6 +15,7 @@
 #
 
 import argparse
+from pathlib import Path
 
 from pipeline.backend.pipeline import PipeLine
 from pipeline.component.dataio import DataIO
@@ -30,7 +31,7 @@ from examples.util.config import Config
 def main(config="../config.yaml", param="./lr_config.yaml", namespace=""):
     # obtain config
 
-    if not isinstance(config, Config):
+    if isinstance(config, str):
         config = Config.load(config)
     parties = config.parties
     guest = parties.guest[0]
@@ -104,7 +105,7 @@ def main(config="../config.yaml", param="./lr_config.yaml", namespace=""):
     # fit model
     pipeline.fit(backend=backend, work_mode=work_mode)
     # query component summary
-    print(pipeline.get_component("evaluation_0").get_summary())
+    # print(pipeline.get_component("evaluation_0").get_summary())
     return pipeline.get_component("evaluation_0").get_summary()
 
 

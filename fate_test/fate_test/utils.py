@@ -56,7 +56,7 @@ def evaluate_almost_equal(metrics, results, abs_tol=None):
         return False
     eval_summary = {}
     for i, metric in enumerate(metrics):
-        v_eval = [res[i] for res in results]
+        v_eval = [res[i] for res in results.values()]
         first_v = v_eval[0]
         if abs_tol is not None:
             eval_summary[metric] = all(math.isclose(v, first_v, abs_tol=abs_tol) for v in v_eval)
@@ -87,7 +87,7 @@ def match_metrics(evaluate, tol, **results):
     for model_name in model_names:
         row = [model_name] + filtered_results[model_name]
         table.add_row(row)
-    print(table.get_string(title="Match Results"))
+    print(table.get_string(title="Metrics Summary"))
 
     if evaluate:
         eval_summary = evaluate_almost_equal(common_metrics, filtered_results, tol)
@@ -96,4 +96,4 @@ def match_metrics(evaluate, tol, **results):
         for metric, v in eval_summary.items():
             row = [metric, v]
             eval_table.add_row(row)
-        print(eval_table)
+        print(eval_table.get_string(title="Match Results"))

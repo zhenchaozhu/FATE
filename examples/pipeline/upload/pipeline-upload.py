@@ -31,7 +31,7 @@ SITE_PATH = site.getsitepackages()[0]
 
 def main(config="../../config.yaml"):
     # obtain config
-    if not isinstance(config, Config):
+    if isinstance(config, str):
         config = Config(config)
     parties = config.parties
     guest = parties.guest[0]

@@ -42,8 +42,8 @@ def main(param="./lr_config.yaml"):
     #    auc_score = roc_auc_score(y, y_prob)
     #except:
     #    print(f"no auc score available")
-    recall = recall_score(y, y_pred, average=None)
-    pr = precision_score(y, y_pred, average=None)
+    recall = recall_score(y, y_pred, average="macro")
+    pr = precision_score(y, y_pred, average="macro")
     acc = accuracy_score(y, y_pred)
     result = {"recall": recall, "precision": pr, "accuracy": acc}
     return result

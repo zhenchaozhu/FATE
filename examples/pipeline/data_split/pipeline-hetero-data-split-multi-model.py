@@ -30,7 +30,7 @@ from examples.util.config import Config
 
 def main(config="../../config.yaml", namespace=""):
     # obtain config
-    if not isinstance(config, Config):
+    if isinstance(config, str):
         config = Config.load(config)
     parties = config.parties
     guest = parties.guest[0]
@@ -42,7 +42,8 @@ def main(config="../../config.yaml", namespace=""):
     guest_train_data = {"name": "motor_hetero_guest", "namespace": f"experiment{namespace}"}
     host_train_data = {"name": "motor_hetero_host", "namespace": f"experiment{namespace}"}
 
-    pipeline = PipeLine().set_initiator(role='guest', party_id=config.guest).set_roles(guest=guest, host=host, arbiter=arbiter)
+    pipeline = PipeLine().set_initiator(role='guest', party_id=config.guest).set_roles(guest=guest, host=host,
+                                                                                       arbiter=arbiter)
 
     reader_0 = Reader(name="reader_0")
     reader_0.get_party_instance(role='guest', party_id=guest).algorithm_param(table=guest_train_data)
@@ -71,7 +72,6 @@ def main(config="../../config.yaml", namespace=""):
                                                     validate_data=hetero_data_split_0.output.data.validate_data))
     pipeline.add_component(hetero_linr_1, data=Data(test_data=hetero_data_split_0.output.data.test_data),
                            model=Model(model=hetero_linr_0.output.model))
-
 
     pipeline.compile()
 

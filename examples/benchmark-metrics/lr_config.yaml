@@ -1,3 +1,5 @@
 data: "../examples/data/vehicle_scale.csv"
 idx: "id"
 label_name: "y"
+penalty: "L2"
+max_iter: 5
