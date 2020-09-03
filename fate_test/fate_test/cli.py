@@ -148,7 +148,7 @@ def run_suite(replace, data_namespace_mangling, config, include, exclude, glob,
 @click.option("-g", '--glob', type=str,
               help="glob string to filter sub-directory of path specified by <include>")
 @click.option("-t", '--tol', type=float,
-              help="absolute tolerance error for metrics to be considered almost equal")
+              help="tolerance (absolute error) for metrics to be considered almost equal")
 @click.option("--yes", is_flag=True,
               help="skip double check")
 @click.option("--skip-data", is_flag=True, default=False,
@@ -177,7 +177,7 @@ def run_benchmark(data_namespace_mangling, config, include, exclude, glob, skip_
             try:
                 start = time.time()
                 echo.echo(f"[{i + 1}/{len(suites)}]start at {time.strftime('%Y-%m-%d %X')} {suite.path}", fg='red')
-                # suite.reflash_configs(config_inst)
+                suite.reflash_configs(config_inst)
 
                 if not skip_data:
                     try:
@@ -262,6 +262,8 @@ def _load_testsuites(includes, excludes, glob, suffix="testsuite.json", suite_ty
             suites.append(Testsuite.load(suite_path.resolve()))
         elif suite_type == "benchmark":
             suites.append(BenchmarkSuite.load(suite_path.resolve()))
+        else:
+            raise ValueError(f"Unsupported suite type: {suite_type}. Only accept type 'testsuite' or 'benchmark'.")
     return suites
 
 
