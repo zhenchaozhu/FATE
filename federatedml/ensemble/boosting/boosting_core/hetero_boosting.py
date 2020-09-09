@@ -66,7 +66,11 @@ class HeteroBoosting(Boosting, ABC):
         elif self.encrypt_param.method.lower() == consts.ITERATIVEAFFINE.lower():
             self.encrypter = IterativeAffineEncrypt()
             self.encrypter.generate_key(key_size=self.encrypt_param.key_length,
-                                        randomized=self.encrypt_param.randomized)
+                                        randomized=False)
+        elif self.encrypt_param.method.lower() == consts.RANDOM_ITERATIVEAFFINE.lower():
+            self.encrypter = IterativeAffineEncrypt()
+            self.encrypter.generate_key(key_size=self.encrypt_param.key_length,
+                                        randomized=True)
         else:
             raise NotImplementedError("encrypt method not supported yes!!!")
 

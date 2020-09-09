@@ -16,7 +16,7 @@
 #  limitations under the License.
 #
 
-from federatedml.secureprotol.he.fixedpoint import FixedPointNumber
+from federatedml.secureprotol.fixedpoint import FixedPointNumber
 from federatedml.secureprotol import gmpy_math
 import random
 

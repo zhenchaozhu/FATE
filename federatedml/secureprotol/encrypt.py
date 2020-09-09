@@ -21,12 +21,12 @@ from Cryptodome import Random
 from Cryptodome.PublicKey import RSA
 
 from federatedml.secureprotol import gmpy_math
-from federatedml.secureprotol.he.affine import AffineCipher
-from federatedml.secureprotol.he.fate_paillier import PaillierKeypair
+from federatedml.secureprotol.affine import AffineCipher
+from federatedml.secureprotol.fate_paillier import PaillierKeypair
 from federatedml.secureprotol.random import RandomPads
 
 
-from federatedml.secureprotol.he.iterative_affine import IterativeAffineCipher
+from federatedml.secureprotol.iterative_affine import IterativeAffineCipher
 
 
 class Encrypt(object):

@@ -30,21 +30,17 @@ class EncryptParam(BaseParam):
         If method is 'Paillier', Paillier encryption will be used for federated ml.
         To use non-encryption version in HomoLR, set this to None.
         For detail of Paillier encryption, please check out the paper mentioned in README file.
+        Accepted values: {'Paillier', 'IterativeAffine', 'Random_IterativeAffine'}
 
     key_length : int, default: 1024
-        Used to specify the length of key in this encryption method. Only needed when method is 'Paillier'
-
-    randomized : bool, default: False
-        Used for iterative affine encryption. If set to True, used randomized iterative affine cipher.
-        Only needed when method is 'iterativeaffine'
+        Used to specify the length of key in this encryption method.
 
     """
 
-    def __init__(self, method=consts.PAILLIER, key_length=1024, randomized=False):
+    def __init__(self, method=consts.PAILLIER, key_length=1024):
         super(EncryptParam, self).__init__()
         self.method = method
         self.key_length = key_length
-        self.randomized = randomized
 
     def check(self):
         if self.method is not None and type(self.method).__name__ != "str":
@@ -59,6 +55,8 @@ class EncryptParam(BaseParam):
                 self.method = consts.PAILLIER
             elif user_input == "iterativeaffine":
                 self.method = consts.ITERATIVEAFFINE
+            elif user_input == "random_iterativeaffine":
+                self.method = consts.RANDOM_ITERATIVEAFFINE
             else:
                 raise ValueError(
                     "encrypt_param's method {} not supported".format(user_input))
@@ -69,8 +67,6 @@ class EncryptParam(BaseParam):
         elif self.key_length <= 0:
             raise ValueError(
                 "encrypt_param's key_length must be greater or equal to 1")
-
-        BaseParam.check_boolean(self.randomized, "encrypt param's randomized ")
 
         LOGGER.debug("Finish encrypt parameter check!")
         return True

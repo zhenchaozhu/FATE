@@ -17,7 +17,7 @@
 import numpy as np
 import unittest
 
-from federatedml.secureprotol.he.iterative_affine import IterativeAffineCipher
+from federatedml.secureprotol.iterative_affine import IterativeAffineCipher
 
 
 class TestAffine(unittest.TestCase):

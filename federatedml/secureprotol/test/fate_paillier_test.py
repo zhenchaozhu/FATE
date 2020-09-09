@@ -16,7 +16,7 @@
 
 import numpy as np
 import unittest
-from federatedml.secureprotol.he.fate_paillier import PaillierKeypair
+from federatedml.secureprotol.fate_paillier import PaillierKeypair
 
 
 class TestPaillierEncryptedNumber(unittest.TestCase):
