@@ -30,19 +30,19 @@ class HeteroDecisionTreeHost(DecisionTree):
         self.host_party_idlist = []
 
         # For fast histogram
-        self.encrypter_type = None
+        self.run_fast_hist = False
         self.bin_num = None
         self.data_bin_dense = None
         self.data_bin_dense_with_position = None
 
         self.transfer_inst = HeteroDecisionTreeTransferVariable()
 
-    def set_encrypter_type(self, encrypter_type):
-        # For fast histogram
-        self.encrypter_type = encrypter_type
+    def activate_fast_histogram_mode(self, ):
+        self.run_fast_hist = True
 
-    def set_bin_num(self, bin_num):
-        # For fast histogram
+    def set_fast_hist_data(self, data_bin_dense, bin_num):
+        # a dense dtable and bin_num for fast hist computation
+        self.data_bin_dense = data_bin_dense
         self.bin_num = bin_num
 
     def set_host_party_idlist(self, l):
@@ -316,7 +316,8 @@ class HeteroDecisionTreeHost(DecisionTree):
     def compute_best_splits(self, node_map: dict, dep: int, batch: int):
 
         if not self.complete_secure_tree:
-            if self.encrypter_type.lower() == consts.ITERATIVEAFFINE.lower():
+
+            if self.run_fast_hist:
                 acc_histograms = self.fast_get_histograms(node_map)
             else:
                 acc_histograms = self.get_local_histograms(node_map, ret='tb')
@@ -353,11 +354,15 @@ class HeteroDecisionTreeHost(DecisionTree):
 
         for dep in range(self.max_depth):
             self.sync_tree_node_queue(dep)
+
             if len(self.cur_layer_nodes) == 0:
                 break
 
             self.inst2node_idx = self.sync_node_positions(dep)
-            self.data_with_node_assignments = self.data_bin.join(self.inst2node_idx, lambda v1, v2: (v1, v2))
+            if self.run_fast_hist:
+                self.data_bin_dense_with_position = self.data_bin_dense.join(self.inst2node_idx, lambda v1, v2: (v1, v2))
+            else:
+                self.data_with_node_assignments = self.data_bin.join(self.inst2node_idx, lambda v1, v2: (v1, v2))
 
             batch = 0
             for i in range(0, len(self.cur_layer_nodes), self.max_split_nodes):

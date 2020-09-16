@@ -69,8 +69,10 @@ class HeteroSecureBoostHost(HeteroBoostingHost):
 
     def fit_a_booster(self, epoch_idx: int, booster_dim: int):
 
+        run_fast_hist = self.encrypt_param.method.lower() == consts.ITERATIVEAFFINE
+
         # for fast hist computation
-        if not self.has_transformed_data:
+        if run_fast_hist and not self.has_transformed_data:
             # start data transformation for fast histogram mode
             if not self.use_missing or (self.use_missing and not self.zero_as_missing):
                 feature_sparse_point_array = [self.bin_sparse_points[i] for i in range(len(self.bin_sparse_points))]
@@ -92,6 +94,10 @@ class HeteroSecureBoostHost(HeteroBoostingHost):
         tree.set_valid_features(self.sample_valid_features())
         tree.set_flowid(self.generate_flowid(epoch_idx, booster_dim))
         tree.set_runtime_idx(self.component_properties.local_partyid)
+
+        if run_fast_hist:
+            tree.activate_fast_histogram_mode()
+            tree.set_fast_hist_data(data_bin_dense=self.data_bin_dense, bin_num=self.bin_num)
 
         if self.complete_secure and epoch_idx == 0:
             tree.set_as_complete_secure_tree()
