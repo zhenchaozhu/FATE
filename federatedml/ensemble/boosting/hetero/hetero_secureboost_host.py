@@ -1,7 +1,10 @@
-from federatedml.util import LOGGER
-from federatedml.util import consts
 from typing import List
 import functools
+import copy
+import numpy as np
+from scipy import sparse as sp
+from federatedml.util import LOGGER
+from federatedml.util import consts
 from federatedml.protobuf.generated.boosting_tree_model_meta_pb2 import BoostingTreeModelMeta
 from federatedml.protobuf.generated.boosting_tree_model_meta_pb2 import QuantileMeta
 from federatedml.protobuf.generated.boosting_tree_model_param_pb2 import BoostingTreeModelParam
@@ -11,8 +14,9 @@ from federatedml.ensemble.basic_algorithms import HeteroDecisionTreeHost
 from federatedml.transfer_variable.transfer_class.hetero_secure_boosting_predict_transfer_variable import \
     HeteroSecureBoostTransferVariable
 from federatedml.util.io_check import assert_io_num_rows_equal
-# from federatedml.util.fate_operator import generate_anonymous
 from federatedml.util.anonymous_generator import generate_anonymous
+from federatedml.feature.fate_element_type import NoneType
+
 
 class HeteroSecureBoostHost(HeteroBoostingHost):
 
