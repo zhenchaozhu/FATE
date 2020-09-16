@@ -31,6 +31,7 @@ class HeteroSecureBoostHost(HeteroBoostingHost):
         self.complete_secure = False
 
         # for fast hist
+        self.run_fast_hist = False
         self.has_transformed_data = False
         self.data_bin_dense = None
 
@@ -67,12 +68,11 @@ class HeteroSecureBoostHost(HeteroBoostingHost):
         new_data.features = sp.csc_matrix(np.array(new_feature_sparse_point_array) + offset)
         return new_data
 
-    def fit_a_booster(self, epoch_idx: int, booster_dim: int):
-
-        run_fast_hist = self.encrypt_param.method.lower() == consts.ITERATIVEAFFINE
-
+    def check_run_fast_hist(self):
+        # if run fast hist, generate dense d_dtable and set related variables
+        self.run_fast_hist = self.encrypt_param.method.lower() == consts.ITERATIVEAFFINE.lower()
         # for fast hist computation
-        if run_fast_hist and not self.has_transformed_data:
+        if self.run_fast_hist and not self.has_transformed_data:
             # start data transformation for fast histogram mode
             if not self.use_missing or (self.use_missing and not self.zero_as_missing):
                 feature_sparse_point_array = [self.bin_sparse_points[i] for i in range(len(self.bin_sparse_points))]
@@ -88,6 +88,9 @@ class HeteroSecureBoostHost(HeteroBoostingHost):
 
             self.has_transformed_data = True
 
+    def fit_a_booster(self, epoch_idx: int, booster_dim: int):
+
+        self.check_run_fast_hist()
         tree = HeteroDecisionTreeHost(tree_param=self.tree_param)
         tree.set_input_data(data_bin=self.data_bin, bin_split_points=self.bin_split_points, bin_sparse_points=
                             self.bin_sparse_points)
@@ -95,7 +98,7 @@ class HeteroSecureBoostHost(HeteroBoostingHost):
         tree.set_flowid(self.generate_flowid(epoch_idx, booster_dim))
         tree.set_runtime_idx(self.component_properties.local_partyid)
 
-        if run_fast_hist:
+        if self.run_fast_hist:
             tree.activate_fast_histogram_mode()
             tree.set_fast_hist_data(data_bin_dense=self.data_bin_dense, bin_num=self.bin_num)
 

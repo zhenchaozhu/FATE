@@ -135,7 +135,7 @@ class HeteroSecureBoostGuest(HeteroBoostingGuest):
     def traverse_a_tree(tree: HeteroDecisionTreeGuest, sample, cur_node_idx):
 
         reach_leaf = False
-                                                      # only need nid here, predict state is not needed
+        # only need nid here, predict state is not needed
         rs = tree.traverse_tree(tree_=tree.tree_node, data_inst=sample, predict_state=(cur_node_idx, -1),
                                 decoder=tree.decode, sitename=tree.sitename, use_missing=tree.use_missing,
                                 split_maskdict=tree.split_maskdict, missing_dir_maskdict=tree.missing_dir_maskdict,

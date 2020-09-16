@@ -66,6 +66,8 @@ class HeteroFastSecureBoostHost(HeteroSecureBoostHost):
         tree_type, target_host_id = self.get_tree_plan(epoch_idx)
         self.check_host_number(tree_type)
 
+        self.check_run_fast_hist()
+
         tree = HeteroFastDecisionTreeHost(tree_param=self.tree_param)
         tree.set_input_data(data_bin=self.data_bin, bin_split_points=self.bin_split_points, bin_sparse_points=
                             self.bin_sparse_points)
@@ -77,6 +79,10 @@ class HeteroFastSecureBoostHost(HeteroSecureBoostHost):
         tree.set_tree_work_mode(tree_type, target_host_id)
         tree.set_layered_depth(self.guest_depth, self.host_depth)
         tree.set_self_host_id(self.component_properties.local_partyid)
+
+        if self.run_fast_hist:
+            tree.activate_fast_histogram_mode()
+            tree.set_fast_hist_data(self.data_bin_dense, self.bin_num)
 
         LOGGER.debug('tree work mode is {}'.format(tree_type))
         tree.fit()
@@ -143,7 +149,6 @@ class HeteroFastSecureBoostHost(HeteroSecureBoostHost):
         else:
 
             LOGGER.info('running layered mode predict')
-
             super(HeteroFastSecureBoostHost, self).boosting_fast_predict(data_inst, trees)
 
     def get_model_meta(self):

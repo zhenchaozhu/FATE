@@ -96,7 +96,7 @@ class FastFeatureHistogram(object):
                                            valid_features=valid_features,
                                            use_missing=use_missing)
 
-        histogram_table = histogram_table.mapReducePartitions(transform_func)
+        histogram_table = histogram_table.mapPartitions(transform_func, use_previous_behavior=False)
         return histogram_table
 
         # return FastFeatureHistogram.construct_table(node_histograms,
