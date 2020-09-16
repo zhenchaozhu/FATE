@@ -26,6 +26,10 @@ class HeteroSecureBoostHost(HeteroBoostingHost):
         self.model_param = HeteroSecureBoostParam()
         self.complete_secure = False
 
+        # for fast hist
+        self.has_transformed_data = False
+        self.data_bin_dense = None
+
         self.predict_transfer_inst = HeteroSecureBoostTransferVariable()
 
     def _init_model(self, param: HeteroSecureBoostParam):
@@ -39,7 +43,44 @@ class HeteroSecureBoostHost(HeteroBoostingHost):
             self.tree_param.use_missing = self.use_missing
             self.tree_param.zero_as_missing = self.zero_as_missing
 
+    @staticmethod
+    def sparse_to_array(data, feature_sparse_point_array, use_missing, zero_as_missing):
+        new_data = copy.deepcopy(data)
+        new_feature_sparse_point_array = copy.deepcopy(feature_sparse_point_array)
+        for k, v in data.features.get_all_data():
+            if v == NoneType():
+                value = -1
+            else:
+                value = v
+            new_feature_sparse_point_array[k] = value
+
+        # as most sparse point is bin-0
+        # when mark it as a missing value (-1), offset it to make it sparse
+        if not use_missing or (use_missing and not zero_as_missing):
+            offset = 0
+        else:
+            offset = 1
+        new_data.features = sp.csc_matrix(np.array(new_feature_sparse_point_array) + offset)
+        return new_data
+
     def fit_a_booster(self, epoch_idx: int, booster_dim: int):
+
+        # for fast hist computation
+        if not self.has_transformed_data:
+            # start data transformation for fast histogram mode
+            if not self.use_missing or (self.use_missing and not self.zero_as_missing):
+                feature_sparse_point_array = [self.bin_sparse_points[i] for i in range(len(self.bin_sparse_points))]
+            else:
+                feature_sparse_point_array = [-1 for i in range(len(self.bin_sparse_points))]
+            sparse_to_array = functools.partial(
+                HeteroSecureBoostHost.sparse_to_array,
+                feature_sparse_point_array=feature_sparse_point_array,
+                use_missing=self.use_missing,
+                zero_as_missing=self.zero_as_missing
+            )
+            self.data_bin_dense = self.data_bin.mapValues(sparse_to_array)
+
+            self.has_transformed_data = True
 
         tree = HeteroDecisionTreeHost(tree_param=self.tree_param)
         tree.set_input_data(data_bin=self.data_bin, bin_split_points=self.bin_split_points, bin_sparse_points=
