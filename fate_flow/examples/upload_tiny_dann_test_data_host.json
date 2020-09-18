@@ -1,0 +1,8 @@
+{
+  "file": "examples/data/tiny_dann_test_data_a_4.csv",
+  "head": 1,
+  "partition": 10,
+  "work_mode": 0,
+  "namespace": "fate_flow_test_tiny_dann_test_data",
+  "table_name": "tiny_test_dann_data_a_4"
+}

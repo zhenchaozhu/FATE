@@ -14,25 +14,22 @@
 #  limitations under the License.
 #
 
+import json
+
 from arch.api.utils import log_utils
+from federatedml.nn.hetero_nn.backend.tf_keras.data_generator import KerasSequenceDataConverter
 from federatedml.nn.hetero_nn.hetero_nn_model import HeteroNNGuestModel
 from federatedml.nn.hetero_nn.hetero_nn_model import HeteroNNHostModel
 from federatedml.nn.homo_nn import nn_model
-from federatedml.nn.hetero_nn.backend.tf_keras.data_generator import KerasSequenceDataConverter
 from federatedml.protobuf.generated.hetero_nn_model_meta_pb2 import HeteroNNModelMeta
 from federatedml.protobuf.generated.hetero_nn_model_meta_pb2 import OptimizerParam
 from federatedml.protobuf.generated.hetero_nn_model_param_pb2 import HeteroNNModelParam
-from federatedml.nn.hetero_nn.backend.model_builder import construct_guest_bottom_model, \
-    construct_guest_interactive_layer, construct_guest_top_model, construct_host_bottom_model, \
-    construct_host_interactive_layer
-
-import json
 
 LOGGER = log_utils.getLogger()
 
 
 class HeteroNNKerasGuestModel(HeteroNNGuestModel):
-    def __init__(self, hetero_nn_param):
+    def __init__(self, hetero_nn_param, interactive_layer_builder, bottom_model_builder, top_model_builder):
         super(HeteroNNKerasGuestModel, self).__init__()
 
         self.bottom_model = None
@@ -55,6 +52,9 @@ class HeteroNNKerasGuestModel(HeteroNNGuestModel):
 
         self.set_nn_meta(hetero_nn_param)
         self.model_builder = nn_model.get_nn_builder(config_type=self.config_type)
+        self.interactive_layer_builder = interactive_layer_builder
+        self.bottom_model_builder = bottom_model_builder
+        self.top_model_builder = top_model_builder
         self.data_converter = KerasSequenceDataConverter()
 
     def set_nn_meta(self, hetero_nn_param):
@@ -70,7 +70,6 @@ class HeteroNNKerasGuestModel(HeteroNNGuestModel):
     def set_empty(self):
         self.is_empty = True
 
-    # Guest Side
     def train(self, x, y, epoch, batch_idx, **kwargs):
         LOGGER.debug("Start guest-side training.")
 
@@ -98,37 +97,35 @@ class HeteroNNKerasGuestModel(HeteroNNGuestModel):
         LOGGER.debug(f" Guest sends interactive_output:{interactive_output} to top layer")
         gradients = self.top_model.train_and_get_backward_gradient(interactive_output, y)
 
-        LOGGER.debug(f"Guest receives gradients:{gradients} from top layer")
+        LOGGER.debug(f"Guest receives gradients:{gradients.shape} from top layer")
+        # LOGGER.debug(f"Guest receives gradients from top layer")
         guest_backward = self.interactive_model.backward(gradients, epoch, batch_idx)
-        LOGGER.debug(f"Guest receives guest_backward:{guest_backward} from interactive layer")
+        # LOGGER.debug(f"Guest receives guest_backward:{guest_backward.shape} from interactive layer")
+        # LOGGER.debug(f"Guest receives gradients from interactive layer")
 
         if not self.is_empty:
             self.bottom_model.backward(x, guest_backward, **kwargs)
 
     def predict(self, x):
         LOGGER.debug("Start guest-side predicting.")
-
-        if not self.is_empty:
-            guest_bottom_output = self.bottom_model.predict(x)
-        else:
-            guest_bottom_output = None
-
-        interactive_output = self.interactive_model.forward(guest_bottom_output)
-        prediction_prob = self.top_model.predict(interactive_output)
-        return prediction_prob
+        output = self._predict(x, epoch=0, batch=0)
+        predict_prob = self.top_model.predict(output)
+        return predict_prob
 
     def evaluate(self, x, y, epoch, batch):
-        LOGGER.debug(f"Start guest-side evaluating with epoch:{epoch} and batch_idx:{batch}.")
+        LOGGER.debug(f"Start guest-side evaluating at epoch:{epoch} and batch_idx:{batch}.")
+        output = self._predict(x, epoch=epoch, batch=batch)
+        metrics = self.top_model.evaluate(output, y)
+        return metrics
 
+    def _predict(self, x, epoch, batch):
         if not self.is_empty:
             guest_bottom_output = self.bottom_model.predict(x)
         else:
             guest_bottom_output = None
 
         interactive_output = self.interactive_model.forward(guest_bottom_output, epoch, batch)
-        metrics = self.top_model.evaluate(interactive_output, y)
-
-        return metrics
+        return interactive_output
 
     def get_hetero_nn_model_param(self):
         model_param = HeteroNNModelParam()
@@ -224,11 +221,11 @@ class HeteroNNKerasGuestModel(HeteroNNGuestModel):
 
     def _build_bottom_model(self):
         LOGGER.debug("[DEBUG] HeteroNNKerasGuestModel._build_bottom_model")
-        self.bottom_model = construct_guest_bottom_model(input_shape=self.bottom_model_input_shape,
-                                                         optimizer=self.optimizer,
-                                                         layer_config=self.bottom_nn_define,
-                                                         model_builder=self.model_builder,
-                                                         data_converter=self.data_converter)
+        self.bottom_model = self.bottom_model_builder(input_shape=self.bottom_model_input_shape,
+                                                      optimizer=self.optimizer,
+                                                      layer_config=self.bottom_nn_define,
+                                                      model_builder=self.model_builder,
+                                                      data_converter=self.data_converter)
 
     def _restore_bottom_model(self, model_bytes):
         self._build_bottom_model()
@@ -236,13 +233,13 @@ class HeteroNNKerasGuestModel(HeteroNNGuestModel):
 
     def _build_top_model(self):
         LOGGER.debug("[DEBUG] HeteroNNKerasGuestModel._build_top_model")
-        self.top_model = construct_guest_top_model(top_model_input_shape=self.top_model_input_shape,
-                                                   optimizer=self.optimizer,
-                                                   top_nn_define=self.top_nn_define,
-                                                   loss=self.loss,
-                                                   metrics=self.metrics,
-                                                   model_builder=self.model_builder,
-                                                   data_converter=self.data_converter)
+        self.top_model = self.top_model_builder(input_shape=self.top_model_input_shape,
+                                                optimizer=self.optimizer,
+                                                top_nn_define=self.top_nn_define,
+                                                loss=self.loss,
+                                                metrics=self.metrics,
+                                                model_builder=self.model_builder,
+                                                data_converter=self.data_converter)
 
     def _restore_top_model(self, model_bytes):
         self._build_top_model()
@@ -250,11 +247,11 @@ class HeteroNNKerasGuestModel(HeteroNNGuestModel):
 
     def _build_interactive_model(self):
         LOGGER.debug("[DEBUG] HeteroNNKerasGuestModel._build_interactive_model")
-        self.interactive_model = construct_guest_interactive_layer(hetero_nn_param=self.hetero_nn_param,
-                                                                   transfer_variable=self.transfer_variable,
-                                                                   partition=self.partition,
-                                                                   interactive_layer_define=self.interactive_layer_define,
-                                                                   model_builder=self.model_builder)
+        self.interactive_model = self.interactive_layer_builder(hetero_nn_param=self.hetero_nn_param,
+                                                                transfer_variable=self.transfer_variable,
+                                                                partition=self.partition,
+                                                                interactive_layer_define=self.interactive_layer_define,
+                                                                model_builder=self.model_builder)
 
     def _restore_interactive_model(self, interactive_model_param):
         self._build_interactive_model()
@@ -263,7 +260,7 @@ class HeteroNNKerasGuestModel(HeteroNNGuestModel):
 
 
 class HeteroNNKerasHostModel(HeteroNNHostModel):
-    def __init__(self, hetero_nn_param):
+    def __init__(self, hetero_nn_param, interactive_layer_builder, bottom_model_builder):
         super(HeteroNNKerasHostModel, self).__init__()
 
         self.bottom_model_input_shape = None
@@ -278,23 +275,29 @@ class HeteroNNKerasHostModel(HeteroNNHostModel):
         self.set_nn_meta(hetero_nn_param)
 
         self.model_builder = nn_model.get_nn_builder(config_type=self.config_type)
+        self.interactive_layer_builder = interactive_layer_builder
+        self.bottom_model_builder = bottom_model_builder
         self.data_converter = KerasSequenceDataConverter()
 
         self.transfer_variable = None
+
+        # control whether host performs local training without the participation of guest
+        self.is_local_train = False
 
     def set_nn_meta(self, hetero_nn_param):
         self.bottom_nn_define = hetero_nn_param.bottom_nn_define
         self.config_type = hetero_nn_param.config_type
         self.optimizer = hetero_nn_param.optimizer
         self.hetero_nn_param = hetero_nn_param
+        self.is_local_train = True if hetero_nn_param["is_local_train"] else False
 
     def _build_bottom_model(self):
         LOGGER.debug("[DEBUG] HeteroNNKerasHostModel.build_bottom_model")
-        self.bottom_model = construct_host_bottom_model(input_shape=self.bottom_model_input_shape,
-                                                        optimizer=self.optimizer,
-                                                        layer_config=self.bottom_nn_define,
-                                                        model_builder=self.model_builder,
-                                                        data_converter=self.data_converter)
+        self.bottom_model = self.bottom_model_builder(input_shape=self.bottom_model_input_shape,
+                                                      optimizer=self.optimizer,
+                                                      layer_config=self.bottom_nn_define,
+                                                      model_builder=self.model_builder,
+                                                      data_converter=self.data_converter)
 
     def _restore_bottom_model(self, model_bytes):
         self._build_bottom_model()
@@ -302,9 +305,9 @@ class HeteroNNKerasHostModel(HeteroNNHostModel):
 
     def _build_interactive_model(self):
         LOGGER.debug("[DEBUG] HeteroNNKerasHostModel._build_interactive_model")
-        self.interactive_model = construct_host_interactive_layer(hetero_nn_param=self.hetero_nn_param,
-                                                                  transfer_variable=self.transfer_variable,
-                                                                  partition=self.partition)
+        self.interactive_model = self.interactive_layer_builder(hetero_nn_param=self.hetero_nn_param,
+                                                                transfer_variable=self.transfer_variable,
+                                                                partition=self.partition)
 
     def _restore_interactive_model(self, interactive_layer_param):
         self._build_interactive_model()
@@ -366,12 +369,10 @@ class HeteroNNKerasHostModel(HeteroNNHostModel):
         model_param = HeteroNNModelParam()
         model_param.bottom_saved_model_bytes = self.bottom_model.export_model()
         model_param.interactive_layer_param.CopyFrom(self.interactive_model.export_model())
-
         return model_param
 
-    # Host Side
-    def train(self, x, epoch, batch_idx, **kwargs):
-        LOGGER.debug("Start host-side training.")
+    def train(self, x, y, epoch, batch_idx, **kwargs):
+        LOGGER.debug(f"host train mode:{self.is_local_train}.")
 
         kwargs["current_epoch"] = epoch
         kwargs["batch_idx"] = batch_idx
@@ -379,27 +380,44 @@ class HeteroNNKerasHostModel(HeteroNNHostModel):
         if self.bottom_model is None:
             self.bottom_model_input_shape = x.shape[1]
             self._build_bottom_model()
-            self._build_interactive_model()
+            if not self.is_local_train:
+                self._build_interactive_model()
+
+        if self.is_local_train:
+            self._local_train(x, y, **kwargs)
+        else:
+            self._train(x, epoch, batch_idx, **kwargs)
+
+    def _local_train(self, x, y, **kwargs):
+        LOGGER.debug("Start local training.")
+        self.bottom_model.local_train(x, y, **kwargs)
+
+    def _train(self, x, epoch, batch_idx, **kwargs):
+        LOGGER.debug("Start host-side training of federation.")
 
         host_bottom_output = self.bottom_model.forward(x, **kwargs)
         LOGGER.debug(f"Host sends host_bottom_output:{host_bottom_output} to interactive layer")
-
         self.interactive_model.forward(host_bottom_output, epoch, batch_idx)
-
-        # host_gradient in plain numpy to be sent to host bottom model
         host_gradient = self.interactive_model.backward(epoch, batch_idx)
-        LOGGER.debug(f"Host receives host_gradient:{host_gradient} from interactive layer")
-        LOGGER.debug(f"Host starts back-propagation of host bottom model")
-        self.bottom_model.backward(x, host_gradient, **kwargs)
+        # host_gradient in plain numpy to be sent to host bottom model
+        LOGGER.debug(f"Host receives host_gradient:{host_gradient.shape} from interactive layer")
+
+        if host_gradient is not None:
+            LOGGER.debug(f"Host starts back-propagation of host bottom model")
+            self.bottom_model.backward(x, host_gradient, **kwargs)
+
+    def evaluate(self, x, y, epoch, batch_idx):
+        metrics = None
+        if self.is_local_train:
+            LOGGER.debug(f"Start host-side local evaluation with epoch:{epoch} and batch_idx:{batch_idx}.")
+            metrics = self.bottom_model.local_evaluate(x, y)
+        else:
+            LOGGER.debug(f"Start host-side federated evaluation with epoch:{epoch} and batch_idx:{batch_idx}.")
+            host_bottom_output = self.bottom_model.predict(x)
+            self.interactive_model.forward(host_bottom_output, epoch, batch_idx)
+        return metrics
 
     def predict(self, x):
         LOGGER.debug("Start host-side predicting.")
-
-        guest_bottom_output = self.bottom_model.predict(x)
-        self.interactive_model.forward(guest_bottom_output)
-
-    def evaluate(self, x, epoch, batch_idx):
-        LOGGER.debug(f"Start host-side evaluating with epoch:{epoch} and batch_idx:{batch_idx}.")
-
-        guest_bottom_output = self.bottom_model.predict(x)
-        self.interactive_model.forward(guest_bottom_output, epoch, batch_idx)
+        host_bottom_output = self.bottom_model.predict(x)
+        self.interactive_model.forward(host_bottom_output)

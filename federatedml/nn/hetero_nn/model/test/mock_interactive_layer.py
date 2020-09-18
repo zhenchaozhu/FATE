@@ -37,7 +37,7 @@ class MockInterActiveGuestDenseLayer(object):
 
         self.partitions = 0
 
-        self.host_bottom_model = MockBottomDenseModel(input_dim=4, output_dim=3, optimizer=None)
+        self.host_bottom_model = MockBottomDenseModel(input_dim=4, output_dim=3, optimizer_param=None)
 
     def set_transfer_variable(self, transfer_variable):
         self.transfer_variable = transfer_variable
@@ -46,28 +46,18 @@ class MockInterActiveGuestDenseLayer(object):
         self.partitions = partition
 
     def __build_model(self, restore_stage=False):
-        # TODO: probably should use DI for creating host_dense_model and guest_dense_model
 
         self.host_model = PlainHostDenseModel()
-        self.host_model.build(self.host_input_shape, self.layer_config, self.model_builder, restore_stage)
+        self.host_model.build(input_shape=self.host_input_shape,
+                              internal_model_builder=self.model_builder,
+                              restore_stage=restore_stage)
         self.host_model.set_learning_rate(self.learning_rate)
 
-        # TODO: should set guest model to empty since we do not use guest dense model
-        # self.guest_model = GuestDenseModel()
-        # self.guest_model.build(self.guest_input_shape, self.layer_config, self.model_builder, restore_stage)
-        # self.guest_model.set_learning_rate(self.learning_rate)
         self.guest_model = None
 
     # Guest interactive layer
     def forward(self, guest_input, epoch=0, batch=0):
         print("[DEBUG] Guest interactive layer start forward propagation of epoch {} batch {}".format(epoch, batch))
-        # encrypted_host_input = PaillierTensor(tb_obj=self.get_host_encrypted_forward_from_host(epoch, batch))
-        #
-        # if not self.partitions:
-        #     self.partitions = encrypted_host_input.partitions
-        #
-        # self.encrypted_host_input = encrypted_host_input
-        # self.guest_input = guest_input
 
         # mimic getting data from host. The data is the output of host's local model
         host_input, _ = get_data()
@@ -82,13 +72,6 @@ class MockInterActiveGuestDenseLayer(object):
             self.__build_model()
 
         host_dense_output = self.forward_interactive(host_bottom_output, epoch, batch)
-
-        # guest_output = self.guest_model.forward_dense(guest_input)
-        # if not self.guest_model.empty:
-        #     dense_output_data = host_dense_output + PaillierTensor(ori_data=guest_output, partitions=self.partitions)
-        # else:
-        #     dense_output_data = host_dense_output
-        # self.dense_output_data = dense_output_data
 
         self.dense_output_data = host_dense_output
 

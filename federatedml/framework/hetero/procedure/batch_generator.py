@@ -30,17 +30,21 @@ class Guest(batch_info_sync.Guest):
         self.batch_nums = None
 
     def register_batch_generator(self, transfer_variables):
+        LOGGER.debug(f"guest transfer_variables.batch_info :{transfer_variables.batch_info}")
+        LOGGER.debug(f"guest transfer_variables.batch_data_index :{transfer_variables.batch_data_index}")
         self._register_batch_data_index_transfer(transfer_variables.batch_info, transfer_variables.batch_data_index)
 
     def initialize_batch_generator(self, data_instances, batch_size, suffix=tuple()):
         self.mini_batch_obj = MiniBatch(data_instances, batch_size=batch_size)
         self.batch_nums = self.mini_batch_obj.batch_nums
         batch_info = {"batch_size": batch_size, "batch_num": self.batch_nums}
+        LOGGER.debug(f"guest batch_info :{batch_info}")
         self.sync_batch_info(batch_info, suffix)
         index_generator = self.mini_batch_obj.mini_batch_data_generator(result='index')
         batch_index = 0
         for batch_data_index in index_generator:
             batch_suffix = suffix + (batch_index,)
+            # TODO: why we need to sync batch index and why not send all batch_index together to save communication.
             self.sync_batch_index(batch_data_index, batch_suffix)
             batch_index += 1
 
@@ -53,15 +57,19 @@ class Guest(batch_info_sync.Guest):
 class Host(batch_info_sync.Host):
     def __init__(self):
         self.finish_sycn = False
-        self.batch_data_insts = []
+        self.batch_data_insts = None
         self.batch_nums = None
 
     def register_batch_generator(self, transfer_variables):
+        LOGGER.debug(f"host transfer_variables.batch_info :{transfer_variables.batch_info}")
+        LOGGER.debug(f"host transfer_variables.batch_data_index :{transfer_variables.batch_data_index}")
         self._register_batch_data_index_transfer(transfer_variables.batch_info, transfer_variables.batch_data_index)
 
     def initialize_batch_generator(self, data_instances, suffix=tuple()):
         batch_info = self.sync_batch_info(suffix)
+        LOGGER.debug(f"host batch_info :{batch_info}")
         self.batch_nums = batch_info.get('batch_num')
+        self.batch_data_insts = []
         for batch_index in range(self.batch_nums):
             batch_suffix = suffix + (batch_index,)
             batch_data_index = self.sync_batch_index(suffix=batch_suffix)

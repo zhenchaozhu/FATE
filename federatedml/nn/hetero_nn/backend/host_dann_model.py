@@ -1,12 +1,18 @@
 import tempfile
 
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
+from sklearn.metrics import roc_auc_score, accuracy_score
+
+from arch.api.utils import log_utils
+
+LOGGER = log_utils.getLogger()
 
 
-def adjust_learning_rate(lr_0, **kwargs):
-    epochs = kwargs["epochs"]
+def adjust_learning_rate(original_lr, **kwargs):
+    epochs = kwargs["max_epochs"]
     num_batch = kwargs["num_batch"]
     curr_epoch = kwargs["current_epoch"]
     batch_idx = kwargs["batch_idx"]
@@ -16,12 +22,11 @@ def adjust_learning_rate(lr_0, **kwargs):
 
     beta = 0.75
     alpha = 10
-    lr = lr_0 / (1 + alpha * p) ** beta
-    return lr
+    lr = original_lr / (1 + alpha * p) ** beta
+    return lr, p
 
 
 def create_embedding(size):
-    # return nn.Parameter(torch.zeros(*size).normal_(0, 0.01))
     return nn.Embedding(*size, _weight=torch.zeros(*size).normal_(0, 0.01))
 
 
@@ -35,6 +40,7 @@ def create_embeddings(embedding_meta_dict):
 class HostDannModel(object):
     def __init__(self, regional_model_list, embedding_dict, partition_data_fn, optimizer_param, beta=1.0,
                  pos_class_weight=2.0, loss_name="CE"):
+        self.classifier = None
         self.regional_model_list = regional_model_list
         self.embedding_dict = embedding_dict
         self.loss_name = loss_name
@@ -50,13 +56,13 @@ class HostDannModel(object):
 
     def _init_optimizer(self, optimizer_param):
         self.original_learning_rate = optimizer_param.kwargs["learning_rate"]
-        self.optimizer = torch.optim.SGD(self.parameters(), lr=self.original_learning_rate)
+        self.classifier_learning_rate = optimizer_param.kwargs["classifier_learning_rate"]
 
     def print_parameters(self):
         print("-" * 50)
         print("Region models:")
         for wrapper in self.regional_model_list:
-            wrapper.print_params()
+            wrapper.print_parameters()
             # for param in wrapper.parameters():
             #     if param.requires_grad:
             #         print(f"{param.train_data}, {param.requires_grad}")
@@ -80,12 +86,13 @@ class HostDannModel(object):
             model_state_dict["embeddings"] = embeddings_state_dict
 
         # save region models
-        model_state_dict["region_part"] = dict()
-        for idx, wrapper in enumerate(self.regional_model_list):
+        model_state_dict["regional_models"] = dict()
+        for idx, regional_model in enumerate(self.regional_model_list):
             region = "region_" + str(idx)
             model_state_dict["regional_models"][region] = dict()
             model_state_dict["regional_models"][region]["order"] = idx
-            model_state_dict["regional_models"][region]["models"] = wrapper.state_dict()
+            model_state_dict["regional_models"][region]["models"] = regional_model.state_dict()
+        return model_state_dict
 
     def load_state_dict(self, model_state_dict):
         # load embeddings
@@ -186,8 +193,8 @@ class HostDannModel(object):
 
     def parameters(self):
         param_list = list()
-        for wrapper in self.regional_model_list:
-            param_list += wrapper.parameters()
+        for regional_model in self.regional_model_list:
+            param_list += regional_model.parameters()
         if self.embedding_dict is not None:
             for embedding in self.embedding_dict.values():
                 param_list += embedding.parameters()
@@ -221,17 +228,47 @@ class HostDannModel(object):
         # print(f"comb_feat_tensor shape:{comb_feat_tensor.shape}")
         return comb_feat_tensor
 
-    def train_local_model(self, loss, **kwargs):
-        curr_lr = adjust_learning_rate(lr_0=self.original_learning_rate, **kwargs)
-        optimizer = optim.SGD(self.parameters(), lr=curr_lr, momentum=0.9)
-        optimizer.zero_grad()
-        loss.backward()
+    def forward(self, x, **kwargs):
+        output = self._forward(x, **kwargs)
+        return output.detach().numpy()
+
+    def local_train(self, x, y, **kwargs):
+        if self.classifier is None:
+            raise RuntimeError("The label classifier is not specified.")
+
+        parameters = self.parameters() + list(self.classifier.parameters())
+        optimizer = optim.SGD(parameters, lr=self.classifier_learning_rate, momentum=0.9, weight_decay=0.01)
+
+        output = self._forward(x, **kwargs)
+        prediction = self.classifier(output)
+
+        if self.loss_name == "CE":
+            y = y.flatten().long()
+        else:
+            # using BCELogitLoss
+            y = y.reshape(-1, 1).type_as(prediction)
+
+        class_loss = self.classifier_criterion(prediction, y)
+        class_loss.backward()
         optimizer.step()
+        optimizer.zero_grad()
 
-    def forward(self, data, **kwargs):
+    def _forward(self, x, **kwargs):
+        msg = f"[DEBUG] HostDannModel.forward"
+        LOGGER.debug(msg)
+        print(msg)
+        x = torch.tensor(x).float()
 
-        feat_dim = data.shape[1] / 2
-        source_data, target_data = data[:feat_dim], data[feat_dim:]
+        feat_dim = int(x.shape[1] / 2)
+        msg = f"[DEBUG] source and target feat_dim:{feat_dim}"
+        LOGGER.debug(msg)
+        print(msg)
+
+        # TODO: split the data into source data and target data
+        # TODO: This is temporary and it may change
+        source_data, target_data = x[:, :feat_dim], x[:, feat_dim:]
+        msg = f"[DEBUG] source.shape and target.shape feat_dim:{source_data.shape}, {target_data.shape}"
+        LOGGER.debug(msg)
 
         src_wide_list, src_deep_par_list = self.partition_data_fn(source_data)
         tgt_wide_list, tgt_deep_par_list = self.partition_data_fn(target_data)
@@ -240,53 +277,115 @@ class HostDannModel(object):
         domain_source_labels = torch.zeros(source_data.shape[0]).long()
         domain_target_labels = torch.ones(target_data.shape[0]).long()
 
+        msg = f"[DEBUG] lengths: {len(self.regional_model_list)}, {len(src_deep_par_list)}, {len(tgt_deep_par_list)}"
+        LOGGER.debug(msg)
+
+        curr_lr, p = adjust_learning_rate(original_lr=self.original_learning_rate, **kwargs)
+        alpha = 2. / (1. + np.exp(-10 * p)) - 1
+        kwargs["alpha"] = alpha
+
+        LOGGER.info(f"dann curr_lr:{curr_lr}, p:{p}, alpha:{alpha}")
+
         total_domain_loss = torch.tensor(0.)
         output_list = []
-        for wrapper, src_data, tgt_data in zip(self.regional_model_list, src_deep_par_list, tgt_deep_par_list):
+        for regional_model, src_data, tgt_data in zip(self.regional_model_list, src_deep_par_list, tgt_deep_par_list):
             src_feat = self._combine_features(src_data)
             tgt_feat = self._combine_features(tgt_data)
-            domain_loss, output = wrapper.compute_total_loss(src_feat, tgt_feat,
-                                                             domain_source_labels,
-                                                             domain_target_labels,
-                                                             **kwargs)
+            # msg = f"[DEBUG] src_feat:{src_feat}, tgt_feat:{tgt_feat}"
+            # LOGGER.debug(msg)
+            domain_loss, output = regional_model.compute_total_loss(src_feat, tgt_feat,
+                                                                    domain_source_labels,
+                                                                    domain_target_labels,
+                                                                    **kwargs)
             output_list.append(output)
             total_domain_loss += domain_loss
 
-        self.train_local_model(total_domain_loss, **kwargs)
+        self._train_regional_models(total_domain_loss, curr_lr)
 
         output_list = src_wide_list + output_list if len(src_wide_list) > 0 else output_list
-        output = torch.cat(output_list, dim=1)
-        return output.detach().numpy()
+        return torch.cat(output_list, dim=1)
 
-    def predict(self, data):
-        return self._calculate_regional_output(data)
+    def _train_regional_models(self, loss, curr_lr):
+        msg = f"[DEBUG] train_regional_models with total_domain_loss:{loss} and learning rate:{curr_lr}"
+        LOGGER.debug(msg)
+
+        # self.print_parameters()
+        optimizer = optim.SGD(self.parameters(), lr=curr_lr, momentum=0.9)
+        loss.backward()
+        optimizer.step()
+        optimizer.zero_grad()
+        msg = f"[DEBUG] finished HostDannModel.train_local_model"
+        LOGGER.debug(msg)
 
     def backward(self, x, grads, **kwargs):
+        msg = f"[DEBUG] HostDannModel.backward"
+        LOGGER.debug(msg)
+        print(msg)
+
         x = torch.tensor(x).float()
         grads = torch.tensor(grads).float()
-        result = self.predict(x)
+        result = self._predict(x)
 
-        curr_lr = adjust_learning_rate(lr_0=self.original_learning_rate, **kwargs)
+        curr_lr, _ = adjust_learning_rate(original_lr=self.original_learning_rate, **kwargs)
         optimizer = optim.SGD(self.parameters(), lr=curr_lr, momentum=0.9)
-        optimizer.zero_grad()
         result.backward(gradient=grads)
         optimizer.step()
+        optimizer.zero_grad()
+        msg = f"[DEBUG] finished HostDannModel.backward with learning rate:{curr_lr}"
+        LOGGER.debug(msg)
 
-    def _calculate_regional_output(self, data):
-        wide_list, deep_par_list = self.partition_data_fn(data)
+    def predict(self, x):
+        return self._predict(x).detach().numpy()
+
+    def _predict(self, x):
+        msg = f"[DEBUG] HostDannModel.predict"
+        LOGGER.debug(msg)
+        print(msg)
+        x = torch.tensor(x).float()
+        LOGGER.debug(f"data:{x}, {x.shape}")
+        return self._calculate_regional_output(x)
+
+    def local_predict(self, x):
+        pred = self._local_predict(x)
+        pred_prob = torch.sigmoid(pred.flatten())
+        return pred_prob.numpy().reshape(-1, 1)
+
+    def local_evaluate(self, x, y):
+        pred = self._local_predict(x)
+        pred_prob = torch.sigmoid(pred.flatten())
+        pred_y = torch.round(pred_prob).long()
+        auc = roc_auc_score(y, pred_prob.tolist())
+        acc = accuracy_score(y, pred_y.tolist())
+
+        y = torch.tensor(y).reshape(-1, 1).type_as(pred)
+        class_loss = self.classifier_criterion(pred, y)
+        return {"loss": class_loss.item(), "auc": auc, "acc": acc}
+
+    def _local_predict(self, x):
+        x = torch.tensor(x).float()
+        output = self._calculate_regional_output(x)
+        pred = self.classifier(output)
+        return pred
+
+    def _calculate_regional_output(self, x):
+        wide_list, deep_par_list = self.partition_data_fn(x)
         output_list = []
         if len(deep_par_list) == 0:
             output_list = wide_list
         else:
-            for wrapper, data_par in zip(self.regional_model_list, deep_par_list):
+            LOGGER.debug(f"regional_model_list len:{len(self.regional_model_list)}")
+            LOGGER.debug(f"deep_par_list len:{len(deep_par_list)}")
+            for regional_model, data_par in zip(self.regional_model_list, deep_par_list):
                 embedding = self._combine_features(data_par)
-                output_list.append(wrapper.compute_output(embedding))
+                output_list.append(regional_model.compute_output(embedding))
             output_list = wide_list + output_list if len(wide_list) > 0 else output_list
+        # LOGGER.debug(f"output_list:{output_list}")
         output = torch.cat(output_list, dim=1)
+        LOGGER.debug(f"regional output combined:{output.shape}")
         return output
 
-    def calculate_domain_discriminator_correctness(self, data, is_source=True):
-        _, deep_par_list = self.partition_data_fn(data)
+    def calculate_domain_discriminator_correctness(self, x, is_source=True):
+        _, deep_par_list = self.partition_data_fn(x)
         output_list = []
         for wrapper, data_par in zip(self.regional_model_list, deep_par_list):
             embedding = self._combine_features(data_par)
@@ -302,8 +401,6 @@ class RegionalModel(object):
         self.aggregator = aggregator
         self.discriminator = discriminator
         self.discriminator_set = False if discriminator is None else True
-
-        # self.classifier_criterion = nn.CrossEntropyLoss()
         self.discriminator_criterion = nn.CrossEntropyLoss()
 
     def state_dict(self):
@@ -333,7 +430,7 @@ class RegionalModel(object):
         if self.discriminator_set:
             self.discriminator.eval()
 
-    def print_params(self):
+    def print_parameters(self):
         print("--" * 50)
         print("==> region classifiers")
         for name, param in self.aggregator.named_parameters():
@@ -369,7 +466,7 @@ class RegionalModel(object):
 
     def compute_total_loss(self, source_data, target_data, domain_source_labels, domain_target_labels,
                            **kwargs):
-        alpha = kwargs["alpha"]
+        alpha = kwargs.get("alpha")
 
         if alpha is None:
             raise Exception("alpha should not be None")
@@ -377,7 +474,6 @@ class RegionalModel(object):
         num_sample = source_data.shape[0] + target_data.shape[0]
         source_feat = self.extractor(source_data)
         target_feat = self.extractor(target_data)
-
         output = self.aggregator(source_feat)
 
         # print("[DEBUG] domain_source_labels should all be zero: \n", domain_source_labels)
@@ -390,6 +486,11 @@ class RegionalModel(object):
         domain_labels = domain_labels[perm]
 
         domain_output = self.discriminator(domain_feat, alpha)
+
+        LOGGER.debug(f"domain_feat shape:{domain_feat.shape}")
+        LOGGER.debug(f"domain_labels shape:{domain_labels.shape}")
+        LOGGER.debug(f"domain_output shape:{domain_output.shape}")
+
         domain_loss = self.discriminator_criterion(domain_output, domain_labels)
 
         return domain_loss, output

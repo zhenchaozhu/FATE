@@ -17,12 +17,57 @@
 #  limitations under the License.
 #
 
+import tempfile
+
 import numpy as np
+import torch
+import torch.nn as nn
 
 from arch.api.utils import log_utils
-from federatedml.nn.hetero_nn.model.test.mock_models import MockInternalDenseModel
 
 LOGGER = log_utils.getLogger()
+
+
+class InternalDenseModel(nn.Module):
+    def __init__(self, input_dim, output_dim):
+        super(InternalDenseModel, self).__init__()
+        LOGGER.debug(f"[DEBUG] InternalDenseModel with shape [{input_dim}, {output_dim}]")
+
+        self.classifier = nn.Sequential(
+            nn.Linear(in_features=input_dim, out_features=output_dim),
+        )
+
+    def _set_parameters(self, weight, bias):
+        def init_weights(m):
+            if type(m) == nn.Linear:
+                with torch.no_grad():
+                    m.weight.copy_(torch.tensor(weight))
+                    # m.bias.data.fill_(torch.tensor(bias))
+                    m.bias.copy_(torch.tensor(bias))
+
+        self.classifier.apply(init_weights)
+
+    def set_parameters(self, parameters):
+        weight = parameters["weight"]
+        bias = parameters["bias"]
+        self._set_parameters(weight, bias)
+
+    def export_model(self):
+        f = tempfile.TemporaryFile()
+        try:
+            torch.save(self.state_dict(), f)
+            f.seek(0)
+            model_bytes = f.read()
+            return model_bytes
+        finally:
+            f.close()
+
+    def restore_model(self, model_bytes):
+        f = tempfile.TemporaryFile()
+        f.write(model_bytes)
+        f.seek(0)
+        self.load_state_dict(torch.load(f))
+        f.close()
 
 
 class DenseModel(object):
@@ -35,7 +80,6 @@ class DenseModel(object):
         self.lr = 1.0
         self.layer_config = None
         self.role = "host"
-        # self.activation_placeholder_name = "activation_placeholder" + str(uuid.uuid1())
         self.activation_gradient_func = None
         self.activation_func = None
         self.is_empty_model = False
@@ -51,7 +95,7 @@ class DenseModel(object):
     def get_weight_gradient(self, delta):
         pass
 
-    def build(self, input_shape=None, layer_config=None, model_builder=None, restore_stage=False):
+    def build(self, input_shape=None, internal_model_builder=None, restore_stage=False):
         LOGGER.debug(f"[DEBUG] build dense layer with input shape:{input_shape}")
         if not input_shape:
             if self.role == "host":
@@ -60,8 +104,7 @@ class DenseModel(object):
                 self.is_empty_model = True
                 return
 
-        self.layer_config = layer_config
-        self.model = MockInternalDenseModel(input_dim=input_shape, output_dim=1)
+        self.model = internal_model_builder(input_dim=input_shape, output_dim=1)
 
         if not restore_stage:
             self._init_model_weight(self.model)
@@ -83,13 +126,12 @@ class DenseModel(object):
 
         LOGGER.debug("model_bytes is {}".format(model_bytes))
         self.model.restore_model(model_bytes)
-        self._init_model_weight(self.model, restore_stage=True)
+        self._init_model_weight(self.model)
 
-    def _init_model_weight(self, model, restore_stage=False):
+    def _init_model_weight(self, model):
         LOGGER.debug("[DEBUG] DenseMode._init_model_weight")
         model_params = [param.tolist() for param in model.parameters()]
         self.model_weight = np.array(model_params[0]).T
-        # self.model_shape = self.model_weight.shape
         self.bias = np.array(model_params[1])
 
         LOGGER.debug(f"[DEBUG] weight: {self.model_weight}, {self.model_weight.shape}")
@@ -172,54 +214,26 @@ class PlainHostDenseModel(DenseModel):
             x should be encrypted_host_input
         """
         self.input = x
-        print("x:", x, x.shape)
-        print("model_weight:", self.model_weight, self.model_weight.shape)
         output = np.matmul(x, self.model_weight)
-        # output = x * self.model_weight
-        print("output:", output, output.shape)
 
         if self.bias is not None:
             output += self.bias
 
-        print("output with bias:", output, output.shape)
         return output
 
     def get_input_gradient(self, delta, acc_noise=None):
-        print("[DEBUG] HostDenseModel.get_input_gradient")
-        print("model_weight:", self.model_weight, self.model_weight.shape)
-        print("delta:", delta, delta.shape)
-        # error = delta * (self.model_weight + acc_noise).T
         error = np.matmul(delta, self.model_weight.T)
-        print("error:", error, error.shape)
         return error
 
     def get_weight_gradient(self, delta):
-        print("[DEBUG] HostDenseModel.get_weight_gradient")
-        print("input:", self.input, self.input.shape)
-        print("delta:", delta, delta.shape)
-        # delta_w = self.input.fast_matmul_2d(delta) / self.input.shape[0]
-        # delta_w = self.input * delta
         delta_w = np.matmul(delta.T, self.input)
-        # delta_w = np.matmul(delta.T, self.input) / self.input.shape[0]
-
-        print("delta_w:", delta_w, delta_w.shape)
-        # delta_w = np.sum(delta_w, axis=0)
-        # print("delta_w:", delta_w)
-
         return delta_w
 
     def update_weight(self, delta):
-        print("[DEBUG] HostDenseModel.update_weight")
-        print("delta:", delta, delta.shape)
-        # self.model_weight -= delta * self.lr
         self.model_weight -= self.lr * delta.T
-        print("*[DEBUG] updated weight:", self.model_weight)
 
     def update_bias(self, delta):
-        print("[DEBUG] HostDenseModel.update_bias")
-        print("delta:", delta, delta.shape)
         self.bias -= np.mean(delta, axis=0) * self.lr
-        print("*[DEBUG] updated bias:", self.bias)
 
 
 class EncryptedHostDenseModel(DenseModel):
@@ -230,7 +244,7 @@ class EncryptedHostDenseModel(DenseModel):
     def forward_dense(self, x):
         LOGGER.debug("[DEBUG] EncryptedHostDenseModel.forward_dense")
         """
-            x should be encrypted_host_input
+            x should be encrypted host input
         """
         self.input = x
 
@@ -243,19 +257,25 @@ class EncryptedHostDenseModel(DenseModel):
 
     def get_input_gradient(self, delta, acc_noise=None):
         LOGGER.debug("[DEBUG] EncryptedHostDenseModel.get_input_gradient")
-        error = delta * (self.model_weight + acc_noise).T
+        if acc_noise is not None:
+            error = delta * (self.model_weight + acc_noise).T
+        else:
+            error = delta * self.model_weight.T
         return error
 
     def get_weight_gradient(self, delta):
         LOGGER.debug("[DEBUG] EncryptedHostDenseModel.get_weight_gradient")
 
-        delta_w = self.input.fast_matmul_2d(delta) / self.input.shape[0]
+        # delta_w = self.input.fast_matmul_2d(delta) / self.input.shape[0]
+        delta_w = self.input.fast_matmul_2d(delta)
 
         return delta_w
 
     def update_weight(self, delta):
         LOGGER.debug("[DEBUG] EncryptedHostDenseModel.update_weight")
+        LOGGER.debug(f"[DEBUG] before weight:{self.model_weight}, delta:{delta}, lr:{self.lr}")
         self.model_weight -= delta * self.lr
+        LOGGER.debug(f"[DEBUG] after weight:{self.model_weight}")
 
     def update_bias(self, delta):
         LOGGER.debug("[DEBUG] EncryptedHostDenseModel.update_bias")

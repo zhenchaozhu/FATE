@@ -53,10 +53,10 @@ class HeteroNNHostModel(HeteroNNModel):
         super(HeteroNNHostModel, self).__init__()
         self.role = "host"
 
-    def train(self, x, epoch, batch):
+    def train(self, x, y, epoch, batch):
         pass
 
-    def evaluate(self, x, epoch ,batch):
+    def evaluate(self, x, y, epoch, batch):
         pass
 
 
@@ -68,5 +68,5 @@ class HeteroNNGuestModel(HeteroNNModel):
     def train(self, x, y, epoch, batch):
         pass
 
-    def evaluate(self, x, y, epoch ,batch):
+    def evaluate(self, x, y, epoch, batch):
         pass

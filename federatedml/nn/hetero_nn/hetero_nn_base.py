@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+from fate_flow.entity.metric import MetricMeta
 #
 #  Copyright 2019 The FATE Authors. All Rights Reserved.
 #
@@ -72,8 +73,8 @@ class HeteroNNBase(ModelBase):
 
         self.batch_generator.register_batch_generator(self.transfer_variable)
 
-    def reset_flowid(self):
-        new_flowid = ".".join([self.flowid, "evaluate"])
+    def reset_flowid(self, idx="0"):
+        new_flowid = ".".join([self.flowid, "evaluate_" + idx])
         self.set_flowid(new_flowid)
 
     def recovery_flowid(self):
@@ -99,6 +100,13 @@ class HeteroNNBase(ModelBase):
     def _load_data(self, data_inst):
         pass
 
+    def _set_loss_callback_info(self):
+        self.callback_meta("loss",
+                           "train",
+                           MetricMeta(name="train",
+                                      metric_type="LOSS",
+                                      extra_metas={"unit_name": "iters"}))
+
     def _restore_model_meta(self, meta):
         # self.hetero_nn_param.interactive_layer_lr = meta.interactive_layer_lr
         self.hetero_nn_param.task_type = meta.task_type
@@ -118,3 +126,5 @@ class HeteroNNBase(ModelBase):
 
     def cross_validation(self, data_instances):
         return start_cross_validation.run(self, data_instances)
+
+

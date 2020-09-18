@@ -21,15 +21,14 @@ import numpy as np
 from arch.api import session
 from arch.api.utils import log_utils
 from fate_flow.entity.metric import Metric
-from fate_flow.entity.metric import MetricMeta
 from federatedml.framework.hetero.procedure import batch_generator
 from federatedml.nn.hetero_nn.backend.model_builder import model_builder
 from federatedml.nn.hetero_nn.hetero_nn_base import HeteroNNBase
 from federatedml.optim.convergence import converge_func_factory
+from federatedml.param.evaluation_param import EvaluateParam
 from federatedml.protobuf.generated.hetero_nn_model_meta_pb2 import HeteroNNMeta
 from federatedml.protobuf.generated.hetero_nn_model_param_pb2 import HeteroNNParam
 from federatedml.util import consts
-from federatedml.param.evaluation_param import EvaluateParam
 from federatedml.util.io_check import assert_io_num_rows_equal
 
 LOGGER = log_utils.getLogger()
@@ -57,6 +56,10 @@ class HeteroNNGuest(HeteroNNBase):
         self.input_shape = None
         self.validation_strategy = None
 
+        self.val_data_x = []
+        self.val_data_y = []
+        self.val_data_keys = []
+
     def _init_model(self, hetero_nn_param):
         super(HeteroNNGuest, self)._init_model(hetero_nn_param)
 
@@ -67,43 +70,63 @@ class HeteroNNGuest(HeteroNNBase):
         self.model = model_builder("guest", self.hetero_nn_param)
         self.model.set_transfer_variable(self.transfer_variable)
 
-    def _set_loss_callback_info(self):
-        self.callback_meta("loss",
-                           "train",
-                           MetricMeta(name="train",
-                                      metric_type="LOSS",
-                                      extra_metas={"unit_name": "iters"}))
+    # def _set_loss_callback_info(self):
+    #     self.callback_meta("loss",
+    #                        "train",
+    #                        MetricMeta(name="train",
+    #                                   metric_type="LOSS",
+    #                                   extra_metas={"unit_name": "iters"}))
 
     def fit(self, data_inst, validate_data=None):
+        # LOGGER.debug(f"data_inst type {type(data_inst)}; validate_data type:{type(validate_data)}")
+        LOGGER.debug(f"start fitting at guest.")
         self.validation_strategy = self.init_validation_strategy(data_inst, validate_data)
         self._build_model()
         self.prepare_batch_data(self.batch_generator, data_inst)
+        self.prepare_batch_val_data(self.batch_generator, validate_data, self.batch_size * 4)
+        LOGGER.debug(f"input_shape: {self.input_shape}")
         if not self.input_shape:
+            # LOGGER.debug("set guest local model to empty.")
             self.model.set_empty()
 
         self._set_loss_callback_info()
 
-        kwargs = dict()
-        kwargs["epochs"] = self.epochs
-        kwargs["num_batch"] = len(self.data_x)
         cur_epoch = 0
+        validation_batch_frequency = 40
         while cur_epoch < self.epochs:
-            LOGGER.debug("cur epoch is {}".format(cur_epoch))
+            LOGGER.debug("current epoch is {}".format(cur_epoch))
             epoch_loss = 0
 
             for batch_idx in range(len(self.data_x)):
-                self.model.train(self.data_x[batch_idx], self.data_y[batch_idx], cur_epoch, batch_idx, **kwargs)
+                self.model.train(self.data_x[batch_idx], self.data_y[batch_idx], cur_epoch, batch_idx)
 
-                self.reset_flowid()
-                metrics = self.model.evaluate(self.data_x[batch_idx], self.data_y[batch_idx], cur_epoch, batch_idx)
-                self.recovery_flowid()
+                # validate
+                if (batch_idx + 1) % validation_batch_frequency == 0:
+                    self.reset_flowid(str(cur_epoch) + "_" + str(batch_idx))
+                    eval_loss_list = []
+                    auc_accumulate = 0
+                    acc_accumulate = 0
+                    num_samples = 0
+                    for batch_val_idx in range(len(self.val_data_x)):
+                        val_data_x = self.val_data_x[batch_val_idx]
+                        val_data_y = self.val_data_y[batch_val_idx]
+                        LOGGER.debug(
+                            f"data_x shape: {val_data_x.shape}, data_y shape {val_data_y.shape}, epoch:{cur_epoch}, "
+                            f"batch_val_idx:{batch_val_idx}")
+                        metrics = self.model.evaluate(val_data_x, val_data_y, cur_epoch, batch_val_idx)
+                        eval_loss_list.append(metrics["loss"])
+                        batch_size = len(val_data_y)
+                        num_samples += batch_size
+                        auc_accumulate += metrics["auc"] * batch_size
+                        acc_accumulate += metrics["acc"] * batch_size
+                    self.recovery_flowid()
+                    eval_auc = auc_accumulate / num_samples
+                    eval_acc = acc_accumulate / num_samples
+                    eval_loss = np.mean(eval_loss_list)
+                    LOGGER.info(f"epoch:{cur_epoch}, batch_idx:{batch_idx}, eval_loss:{eval_loss}, "
+                                f"auc is {eval_auc}, acc is {eval_acc}")
 
-                LOGGER.debug("metrics is {}".format(metrics))
-                batch_loss = metrics["loss"]
-
-                epoch_loss += batch_loss
-
-            epoch_loss /= len(self.data_x)
+                    epoch_loss = eval_loss
 
             LOGGER.debug("epoch {}' loss is {}".format(cur_epoch, epoch_loss))
 
@@ -142,15 +165,8 @@ class HeteroNNGuest(HeteroNNBase):
         keys, test_x, test_y = self._load_data(data_inst)
         self.set_partition(data_inst)
 
-        # TODO: here should return a numpy array of predicted probability with shape (sample_num, 1)
+        # NOTE: here should return a numpy array of predicted probability with shape (sample_num, 1)
         preds = self.model.predict(test_x)
-
-        LOGGER.debug(f"[DEBUG] guest predict pred prob: {keys}: {preds}")
-        LOGGER.debug(f"[DEBUG] guest predict pred prob: {type(keys)}: {type(preds)}")
-
-        a = zip(keys, preds)
-
-        LOGGER.debug(f"[DEBUG] a: {a}")
 
         predict_tb = session.parallelize(zip(keys, preds), include_key=True, partition=data_inst._partitions)
         if self.task_type == "regression":
@@ -184,6 +200,7 @@ class HeteroNNGuest(HeteroNNBase):
         return {MODELMETA: self._get_model_meta(),
                 MODELPARAM: self._get_model_param()}
 
+    # TODO: where/when is this load_model called?
     def load_model(self, model_dict):
         model_dict = list(model_dict["model"].values())[0]
         param = model_dict.get(MODELPARAM)
@@ -241,6 +258,19 @@ class HeteroNNGuest(HeteroNNBase):
 
         self._convert_label()
         self.set_partition(data_inst)
+
+    def prepare_batch_val_data(self, batch_generator, data_inst, batch_size):
+        batch_generator.initialize_batch_generator(data_inst, batch_size, suffix=("val",))
+        batch_data_generator = batch_generator.generate_batch_data()
+
+        for batch_data in batch_data_generator:
+            keys, batch_x, batch_y = self._load_data(batch_data)
+            self.val_data_x.append(batch_x)
+            self.val_data_y.append(batch_y)
+            self.val_data_keys.append(keys)
+        # TODO: for now convert label is not necessary since we are using binary classification
+        # self._convert_label()
+        # self.set_partition(data_inst)
 
     def _load_data(self, data_inst):
         data = list(data_inst.collect())

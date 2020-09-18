@@ -4,9 +4,9 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from sklearn.metrics import roc_auc_score
 
 from arch.api.utils import log_utils
+from federatedml.nn.hetero_nn.backend.pytorch.interactive.dense_model import InternalDenseModel
 
 LOGGER = log_utils.getLogger()
 
@@ -34,17 +34,12 @@ def adjust_learning_rate(lr_0, **kwargs):
     return lr
 
 
-class MockInternalDenseModel(nn.Module):
-    def __init__(self, input_dim, output_dim, optimizer=None):
-        super(MockInternalDenseModel, self).__init__()
-        msg = f"[DEBUG] create dense layer with shape [{input_dim}, {output_dim}]"
+class MockInternalDenseModel(InternalDenseModel):
+    def __init__(self, input_dim, output_dim):
+        super(MockInternalDenseModel, self).__init__(input_dim, output_dim)
+        msg = f"[DEBUG] create MockInternalDenseModel with shape [{input_dim}, {output_dim}]"
         LOGGER.debug(msg)
         print(msg)
-
-        self.classifier = nn.Sequential(
-            nn.Linear(in_features=input_dim, out_features=output_dim),
-            # nn.LeakyReLU()
-        )
 
         if input_dim == 4:
             weight = [[0.51, 0.82, 1.10, 0.3],
@@ -52,42 +47,12 @@ class MockInternalDenseModel(nn.Module):
                       [0.91, 0.22, 1.31, 0.4]]
         elif input_dim == 3:
             weight = [[0.23, 0.19, 1.4]]
+        elif input_dim == 2:
+            weight = [[0.23, 0.19]]
         else:
-            raise Exception("Does not support input_shape:{}")
+            raise Exception(f"Does not support input_shape:{input_dim}")
         bias = [0.01]
         self._set_parameters(weight, bias)
-
-    def _set_parameters(self, weight, bias):
-        def init_weights(m):
-            if type(m) == nn.Linear:
-                with torch.no_grad():
-                    m.weight.copy_(torch.tensor(weight))
-                    # m.bias.data.fill_(torch.tensor(bias))
-                    m.bias.copy_(torch.tensor(bias))
-
-        self.classifier.apply(init_weights)
-
-    def set_parameters(self, parameters):
-        weight = parameters["weight"]
-        bias = parameters["bias"]
-        self._set_parameters(weight, bias)
-
-    def export_model(self):
-        f = tempfile.TemporaryFile()
-        try:
-            torch.save(self.state_dict(), f)
-            f.seek(0)
-            model_bytes = f.read()
-            return model_bytes
-        finally:
-            f.close()
-
-    def restore_model(self, model_bytes):
-        f = tempfile.TemporaryFile()
-        f.write(model_bytes)
-        f.seek(0)
-        self.load_state_dict(torch.load(f))
-        f.close()
 
 
 class MockBottomDenseModel(nn.Module):
@@ -120,7 +85,6 @@ class MockBottomDenseModel(nn.Module):
 
     def _init_optimizer(self, optimizer_param):
         self.original_learning_rate = optimizer_param.kwargs["learning_rate"]
-        # self.optimizer = optim.SGD(self.parameters(), lr=self.original_learning_rate, momentum=0.9)
 
     def forward(self, x, **kwargs):
         msg = "[DEBUG] MockBottomDenseModel.forward"
@@ -143,12 +107,16 @@ class MockBottomDenseModel(nn.Module):
         LOGGER.debug(msg)
         print(msg)
 
-        curr_lr = adjust_learning_rate(lr_0=self.original_learning_rate, **kwargs)
+        msg = f"[DEBUG] host bottom model back-propagation grads:{grads}"
+        LOGGER.debug(msg)
+        print(msg)
+
         msg = f"[DEBUG] kwargs:{kwargs}"
         LOGGER.debug(msg)
         print(msg)
 
-        msg = f"[DEBUG] adjusted learning rate:{curr_lr}"
+        curr_lr = adjust_learning_rate(lr_0=self.original_learning_rate, **kwargs)
+        msg = f"[DEBUG] original_learning_rate:{self.original_learning_rate}, adjusted learning rate:{curr_lr}"
         LOGGER.debug(msg)
         print(msg)
 
@@ -198,59 +166,3 @@ class MockBottomDenseModel(nn.Module):
         f.seek(0)
         self.load_state_dict(torch.load(f))
         f.close()
-
-
-class MockTopModel(object):
-    def __init__(self):
-        self.classifier_criterion = nn.BCEWithLogitsLoss(reduction='mean')
-
-    def set_data_converter(self, data_converter):
-        pass
-
-    def train_and_get_backward_gradient(self, x, y):
-        msg = "[DEBUG] MockTopModel.train_and_get_backward_gradient:"
-        LOGGER.debug(msg)
-        print(msg)
-
-        x = torch.tensor(x, requires_grad=True).float()
-        y = torch.tensor(y).long()
-        y = y.reshape(-1, 1).type_as(x)
-        print("x=", x)
-        print("y=", y)
-
-        class_loss = self.classifier_criterion(x, y)
-        grads = torch.autograd.grad(outputs=class_loss, inputs=x)
-        msg = f"[DEBUG] *class_loss={class_loss}"
-        LOGGER.debug(msg)
-        print(msg)
-        msg = f"[DEBUG] *top model back-propagation grads={grads}"
-        LOGGER.debug(msg)
-        print(msg)
-
-        return grads[0].numpy()
-
-    def predict(self, x):
-        msg = "[DEBUG] top model start to predict"
-        LOGGER.debug(msg)
-        print(msg)
-
-        x = torch.tensor(x).float()
-        pos_prob = torch.sigmoid(x.flatten())
-        return pos_prob.numpy().reshape(-1, 1)
-
-    def evaluate(self, x, y):
-        msg = "[DEBUG] top model start to evaluate"
-        LOGGER.debug(msg)
-        print(msg)
-
-        x = torch.tensor(x).float()
-        y = torch.tensor(y).long()
-        y = y.reshape(-1, 1).type_as(x)
-        class_loss = self.classifier_criterion(x, y)
-        return {"loss": class_loss.item()}
-
-    def export_model(self):
-        return ''.encode()
-
-    def restore_model(self, model_bytes):
-        pass
