@@ -77,7 +77,7 @@ class HeteroFastSecureBoostingTreeGuest(HeteroSecureBoostingTreeGuest):
 
         self.update_feature_importance(tree.get_feature_importance())
 
-        tree.print_leafs()
+        # tree.print_leafs()
 
         return tree
 

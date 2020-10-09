@@ -279,6 +279,7 @@ class HeteroDecisionTreeGuest(DecisionTree):
                         best_splitinfo_host[_][1] = splitinfo[1]
                         best_gains[_] = splitinfo[2]
 
+            # only one host participate in federated_find_split calculation
             if idx != -1:
                 self.sync_federated_best_splitinfo_host(best_splitinfo_host, dep, batch, idx)
                 break

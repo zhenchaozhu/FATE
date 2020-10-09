@@ -87,7 +87,7 @@ class HeteroFastSecureBoostingTreeHost(HeteroSecureBoostingTreeHost):
         tree.fit()
         self.update_feature_importance(tree.get_feature_importance())
 
-        tree.print_leafs()
+        # tree.print_leafs()
         return tree
 
     def load_booster(self, model_meta, model_param, epoch_idx, booster_idx):

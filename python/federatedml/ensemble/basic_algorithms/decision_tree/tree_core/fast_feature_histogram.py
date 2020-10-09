@@ -49,7 +49,6 @@ class FastFeatureHistogram(object):
                                                                                  ))
         # Detect length of cipher
         g, h = grad_and_hess.first()[1]
-        ghlist = grad_and_hess.take(100)
         cipher_length = len(str(g.cipher))
         phrase_num = int(np.ceil(float(cipher_length) / cipher_split_num))+1
         n_final = g.n_final

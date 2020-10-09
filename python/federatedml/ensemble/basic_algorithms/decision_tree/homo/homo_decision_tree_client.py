@@ -456,8 +456,6 @@ class HomoDecisionTreeClient(DecisionTree):
                                   left_nodeid=node.left_nodeid,
                                   right_nodeid=node.right_nodeid,
                                   missing_dir=node.missing_dir)
-
-        LOGGER.debug('output tree: epoch_idx:{} tree_idx:{}'.format(self.epoch_idx, self.tree_idx))
         return model_param
 
     def set_model_param(self, model_param):
@@ -481,7 +479,6 @@ class HomoDecisionTreeClient(DecisionTree):
         return model_meta, model_param
 
     def load_model(self, model_meta=None, model_param=None):
-        LOGGER.info("load tree model")
         self.set_model_meta(model_meta)
         self.set_model_param(model_param)
 

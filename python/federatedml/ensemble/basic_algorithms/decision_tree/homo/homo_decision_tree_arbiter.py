@@ -140,7 +140,7 @@ class HomoDecisionTreeArbiter(DecisionTree):
         """
         Do nothing
         """
-        LOGGER.debug('start predicting')
+        LOGGER.debug('start predicting, arbiter skip prediction')
 
     """
     These functions are not needed in homo-decision-tree

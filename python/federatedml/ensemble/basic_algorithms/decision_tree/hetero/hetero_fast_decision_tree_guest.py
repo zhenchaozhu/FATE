@@ -119,7 +119,7 @@ class HeteroFastDecisionTreeGuest(HeteroDecisionTreeGuest):
                                                                  unleaf_state_nodeid2)
             self.inst2node_idx = self.inst2node_idx.union(dispatch_guest_result)
         else:
-            LOGGER.debug('skip host only inst2node_idx computation')
+            LOGGER.debug('host only, skip inst2node_idx computation')
             self.inst2node_idx = dispatch_guest_result
 
     def sync_sample_leaf_pos(self, idx):
