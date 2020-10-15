@@ -14,15 +14,15 @@ matrix:
     - env: OS='centos:7'
 
 script:
-  - wget https://webank-ai-1251170195.cos.ap-guangzhou.myqcloud.com/standalone-fate-master-1.4.2.tar.gz
-  - tar -xzf  standalone-fate-master-1.4.2.tar.gz 
-  - cd standalone-fate-master-1.4.2
+  - wget https://webank-ai-1251170195.cos.ap-guangzhou.myqcloud.com/standalone-fate-master-1.5.0_preview.tar.gz
+  - tar -xzvf  standalone-fate-master-1.5.0_preview.tar.g
+  - cd standalone-fate-master-1.5.0_preview
   - sed -i.bak "s/sh  service.sh/bash service.sh/g" init.sh
-  - source init.sh init
+  - sh init.sh init
   - ls -alh
-  - bash ./federatedml/test/run_test.sh
+  - bash ./python/federatedml/test/run_test.sh
 after_success:
   - conda install -c conda-forge codecov --yes
-  - cd ./federatedml/test && codecov
+  - cd ./python/federatedml/test && codecov
 
 
