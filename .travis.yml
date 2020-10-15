@@ -14,6 +14,7 @@ matrix:
     - env: OS='centos:7'
 
 script:
+  - pip install codecov
   - wget https://webank-ai-1251170195.cos.ap-guangzhou.myqcloud.com/standalone-fate-master-1.5.0_preview.tar.gz
   - tar -xzvf  standalone-fate-master-1.5.0_preview.tar.g
   - cd standalone-fate-master-1.5.0_preview
