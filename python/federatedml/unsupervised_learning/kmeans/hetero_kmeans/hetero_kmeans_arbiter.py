@@ -100,9 +100,11 @@ class HeteroKmeansArbiter(BaseKmeansModel):
         LOGGER.info("Enter hetero Kmeans arbiter fit")
         last_cluster_result = None
         while self.n_iter_ < self.max_iter:
-            dist_sum = self.aggregator.aggregate_tables(suffix=(self.n_iter_,))
             if last_cluster_result is not None:
                 self.cal_dbi(dist_sum, last_cluster_result, self.n_iter_)
+            dist_sum = self.aggregator.aggregate_tables(suffix=(self.n_iter_,))
+            # if last_cluster_result is not None:
+            #     self.cal_dbi(dist_sum, last_cluster_result, self.n_iter_)
             cluster_result = dist_sum.mapValues(lambda v: np.argmin(v))
             self.aggregator.send_aggregated_tables(cluster_result, suffix=(self.n_iter_,))
             tol1 = self.transfer_variable.guest_tol.get(idx=0, suffix=(self.n_iter_,))
