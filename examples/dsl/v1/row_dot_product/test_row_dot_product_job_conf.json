@@ -1,0 +1,81 @@
+{
+  "initiator": {
+    "role": "guest",
+    "party_id": 9999
+  },
+  "job_parameters": {
+    "work_mode": 0
+  },
+  "role": {
+    "guest": [
+      9999
+    ],
+    "host": [
+      10000
+    ]
+  },
+  "role_parameters": {
+    "guest": {
+      "args": {
+        "data": {
+          "data0": [
+            {
+              "name": "breast_hetero_host",
+              "namespace": "experiment"
+            }
+          ]
+        }
+      },
+      "dataio_0": {
+        "with_label": [
+          false
+        ],
+        "output_format": [
+          "dense"
+        ],
+        "missing_fill": [
+          false
+        ],
+        "outlier_replace": [
+          false
+        ]
+      }
+    },
+    "host": {
+      "args": {
+        "data": {
+          "data0": [
+            {
+              "name": "breast_hetero_host",
+              "namespace": "experiment"
+            }
+          ]
+        }
+      },
+      "dataio_0": {
+        "with_label": [
+          false
+        ],
+        "output_format": [
+          "dense"
+        ],
+        "missing_fill": [
+          false
+        ],
+        "outlier_replace": [
+          false
+        ]
+      }
+    }
+  },
+  "algorithm_parameters": {
+      "row_dot_product_0": {
+        "encrypt_param": {
+          "method": "paillier"
+          },
+        "encrypted_mode_calculator_param": {
+          "mode": "fast"
+        }
+      }
+  }
+}

@@ -1,0 +1,15 @@
+{
+    "module_path":  "federatedml/statistic/row_dot_product",
+    "param_class" : "federatedml/param/row_dot_product_param.py/RowDotProductParam",
+    "role":
+    {
+        "guest":
+        {
+            "program": "row_dot_product.py/RowDotProductGuest"
+        },
+        "host":
+        {
+            "program": "row_dot_product.py/RowDotProductHost"
+        }
+    }
+}

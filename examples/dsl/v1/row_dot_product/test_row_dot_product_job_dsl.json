@@ -1,0 +1,42 @@
+{
+    "components" : {
+        "dataio_0": {
+            "module": "DataIO",
+            "input": {
+                "data": {
+                    "data": [
+                        "args.data0"
+                    ]
+                }
+            },
+            "output": {
+                "data": ["data"],
+                "model": ["dataio"]
+            }
+         },
+        "intersection_0": {
+            "module": "Intersection",
+            "input": {
+                "data": {
+                    "data": [
+                        "dataio_0.data"
+                    ]
+                }
+            },
+            "output": {
+                "data": ["data"]
+            }
+        },
+        "row_dot_product_0": {
+            "module": "RowDotProduct",
+            "input": {
+                "data": {
+                        "data": ["intersection_0.data"]
+                }
+            },
+            "output": {
+                "data": ["data"]
+            }
+        }
+    }
+}
