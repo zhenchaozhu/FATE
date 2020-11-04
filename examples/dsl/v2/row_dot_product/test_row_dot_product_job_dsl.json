@@ -19,7 +19,7 @@
             },
             "output": {
                 "data": ["data"],
-                "model": ["dataio"]
+                "model": ["model"]
             }
          },
         "intersection_0": {
