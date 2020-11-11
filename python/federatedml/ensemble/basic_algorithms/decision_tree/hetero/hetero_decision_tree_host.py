@@ -323,7 +323,7 @@ class HeteroDecisionTreeHost(DecisionTree):
             if self.run_sparse_opt:
                 acc_histograms = self.fast_get_histograms(node_map)
             else:
-                acc_histograms = self.get_local_histograms(node_map, ret='tb')
+                acc_histograms = self.get_local_histograms(node_map, ret='tb')  # return table
 
             splitinfo_host, encrypted_splitinfo_host = self.splitter.find_split_host(histograms=acc_histograms,
                                                                                      node_map=node_map,
