@@ -1,6 +1,6 @@
 # FATE v1.4.4升级包使用说明
 
-**本使用说明仅适用于FATE v1.4.0 - v1.4.4的更新，说明中更新包下载路径及解压目录均以用户的home目录为例。**
+**本使用说明仅适用于FATE v1.4.0 - v1.4.4的更新，如有多台机器需要升级，请逐台机器执行此升级脚本。说明中更新包下载路径及解压目录均以用户的home目录为例。**
 
 
 
@@ -100,7 +100,7 @@ sh upgrade_script.sh fatepython
 如果提示ERROR，... aborting字样，则为参数检查不通过，请根据提示对脚本参数进行二次确认及修改；
 
 ### 3.3 升级在线集群连接配置(fateflow所在机器操作)
-FATE python代码包在更新时会在同级目录下备份，文件夹名为`python_更新日期`，例如`python_20200901`
+FATE python代码包在更新时会在同级目录下备份，文件夹名为`python_更新时间`，例如`python_20200901120000`
 从备份目录配置文件: ```~/upgrade_package/python_更新日期/fate_flow/settings.py```获取```ZOOKEEPER_HOSTS```
 从备份目录配置文件: ```~/upgrade_package/python_更新日期/fate_flow/utils/setting_utils.py```获取```USE_ACL``` ```ZK_USERNAME``` ```ZK_PASSWORD```
 编辑/data/projects/fate/python/arch/conf/base_conf.yaml文件, 使用备份配置文件中的值填入新的配置项中
@@ -146,7 +146,7 @@ sh service.sh stop fate-fateflow
 
 #### 4.1.2 代码更新回退
 
-FATE python代码包在更新时会在同级目录下备份，文件夹名为`python_更新日期`，例如`python_20200901`。如需回退，请将更新后的python代码包删除或进行备份，并将原python代码包的名字重新修改为`python`即可。具体操作如下：
+FATE python代码包在更新时会在同级目录下备份，文件夹名为`python_更新时间`，例如`python_20200901120000`。如需回退，请将更新后的python代码包删除或进行备份，并将原python代码包的名字重新修改为`python`即可。具体操作如下：
 
 ```bash
 # 进入FATE项目根目录
@@ -156,7 +156,7 @@ cd /data/projects/fate/
 mv python/ python_upgrade_backup/
 
 # 将原python代码包重命名为python
-mv python_20200901/ python/
+mv python_20200901120000/ python/
 ```
 
 
@@ -253,7 +253,7 @@ sh service.sh stop fate-fateflow
 
 #### 4.4.2 代码更新回退
 
-FATE flow代码包在更新时会在同级目录下备份，文件夹名为`flow_更新日期`，例如`flow_20200901`。如需回退，请将更新后的fate flow代码包删除或进行备份，并将原fate flow代码包的名字重新修改为`fate_flow`即可。具体操作如下：
+FATE flow代码包在更新时会在同级目录下备份，文件夹名为`fate_flow_更新时间`，例如`fate_flow_20200901120000`。如需回退，请将更新后的fate flow代码包删除或进行备份，并将原fate flow代码包的名字重新修改为`fate_flow`即可。具体操作如下：
 
 ```bash
 # 进入FATE项目根目录
@@ -263,7 +263,7 @@ cd /data/projects/fate/python
 mv fate_flow/ fate_flow_upgrade_backup/
 
 # 将原python代码包重命名为python
-mv fate_flow_20200901/ fate_flow/
+mv fate_flow_20200901120000/ fate_flow/
 ```
 
 
