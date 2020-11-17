@@ -54,22 +54,65 @@ SUPERVISOR_ROOT=/data/projects/common/supervisord
 
 ## 3. 执行更新脚本
 
-对参数进行修改后，请对更新脚本进行保存。保存后，请使用如下命令执行更新：
+对参数进行修改后，请对更新脚本进行保存，重新打包
 
 ```bash
-cd ~/upgrade_package/
+cd ~
+tar czf upgrade_package_new.tar.gz upgrade_package
+```
 
-# 执行如下命令，其中组件名请从：fatepython、fateflow、mysql、all中选择
-sh upgrade_script.sh 组件名
+### 3.1 allinone部署方式(所有服务部署在同一台机器)
 
-# 例如，如果只需要更新fatepython，请执行如下命令：
-sh upgrade_script.sh fatepython
+将upgrade_package_new.tar.gz拷贝到部署机器，执行：
+
+```bash
+tar xzf upgrade_package_new.tar.gz
+cd ./upgrade_package/
+sh upgrade_script.sh all
 ```
 
 如果提示ERROR，... aborting字样，则为参数检查不通过，请根据提示对脚本参数进行二次确认及修改；
 
 如果提示Upgrading process finished字样，则更新成功。
 
+
+### 3.2 ansible部署方式(所有服务部署在不同的机器)
+
+将upgrade_package_new.tar.gz拷贝到服务部署机器，执行：
+
+```bash
+tar xzf upgrade_package_new.tar.gz
+cd ./upgrade_package/
+
+# 对应不同的服务执行如下命令
+# mysql机器
+sh upgrade_script.sh mysql
+
+# fateflow机器
+sh upgrade_script.sh fatepython
+
+# nodemanager机器
+sh upgrade_script.sh fatepython
+因为同一集群不支持多个fateflow，nodemanager机器需要单独停止fateflow服务，参考下面4.1.1
+
+```
+
+如果提示ERROR，... aborting字样，则为参数检查不通过，请根据提示对脚本参数进行二次确认及修改；
+
+### 3.3 升级在线集群连接配置(fateflow所在机器操作)
+FATE python代码包在更新时会在同级目录下备份，文件夹名为`python_更新日期`，例如`python_20200901`
+从备份目录配置文件: ```~/upgrade_package/python_更新日期/fate_flow/settings.py```获取```ZOOKEEPER_HOSTS```
+从备份目录配置文件: ```~/upgrade_package/python_更新日期/fate_flow/utils/setting_utils.py```获取```USE_ACL``` ```ZK_USERNAME``` ```ZK_PASSWORD```
+编辑/data/projects/fate/python/arch/conf/base_conf.yaml文件, 使用备份配置文件中的值填入新的配置项中
+```yaml
+use_registry: true
+zookeeper:
+  hosts:
+    - 10.0.0.1:2181
+  use_acl: true
+  user: fate
+  password: fate
+```
 
 
 ## 4. 更新回滚
