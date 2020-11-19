@@ -60,6 +60,9 @@
         "one-vs-all": {
             "script": "pipeline-hetero-lr-one-vs-all.py"
         },
+        "early-stop-ovr": {
+            "script": "pipeline-hetero-lr-early-stop-one-vs-all.py"
+        },
         "ovr-cv": {
             "script": "pipeline-hetero-lr-ovr-cv.py"
         },
