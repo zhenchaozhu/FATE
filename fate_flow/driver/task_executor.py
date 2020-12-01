@@ -120,6 +120,9 @@ class TaskExecutor(object):
 
             schedule_logger().info('run {} {} {} {} {} task'.format(job_id, component_name, task_id, role, party_id))
             schedule_logger().info(component_parameters)
+            job_runtime_conf = job_utils.get_job_conf(job_id)['job_runtime_conf_path']
+            if component_parameters.get('job_parameters'):
+                component_parameters['job_parameters'].update(job_runtime_conf['job_parameters'])
             schedule_logger().info(task_input_dsl)
             task_run_args = TaskExecutor.get_task_run_args(job_id=job_id, role=role, party_id=party_id,
                                                            task_id=task_id,
