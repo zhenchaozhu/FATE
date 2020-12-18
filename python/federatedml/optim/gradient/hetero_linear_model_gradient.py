@@ -48,6 +48,7 @@ class HeteroGradientBase(object):
 
     def set_use_sample_weight(self):
         self.use_sample_weight = True
+        self.use_async = False
 
     def set_fixed_float_precision(self):
         self.fixed_float_precision = True
@@ -203,6 +204,13 @@ class Guest(HeteroGradientBase):
         self.unilateral_gradient_transfer = guest_gradient_transfer
         self.unilateral_optim_gradient_transfer = guest_optim_gradient_transfer
 
+    @staticmethod
+    def sum_sample_weight(kv_iterator):
+        res = 0
+        for _, inst in kv_iterator:
+            res += inst.weight
+        return res
+
     def compute_and_aggregate_forwards(self, data_instances, model_weights,
                                        encrypted_calculator, batch_index, current_suffix, offset=None):
         raise NotImplementedError("Function should not be called here")
@@ -231,6 +239,12 @@ class Guest(HeteroGradientBase):
         fore_gradient = self.half_d
         for host_forward in self.host_forwards:
             fore_gradient = fore_gradient.join(host_forward, lambda x, y: x + y)
+        if self.use_sample_weight:
+            weight_sum = data_instances.mapPartitions(self.sum_sample_weight).reduce(lambda x, y: x + y)
+            sample_count = data_instances.count()
+            weight_adjust = sample_count / weight_sum
+            fore_gradient = fore_gradient.join(data_instances,
+                                               lambda wx, d: d.weight * weight_adjust * wx - d.label * d.weight * weight_adjust)
         self.remote_fore_gradient(fore_gradient, suffix=current_suffix)
         unilateral_gradient = self.compute_gradient(data_instances, fore_gradient, model_weights.fit_intercept)
         return unilateral_gradient
@@ -304,6 +318,11 @@ class Host(HeteroGradientBase):
         raise NotImplementedError("Function should not be called here")
 
     def _asynchronous_compute_gradient(self, data_instances, cipher, current_suffix):
+        """
+        if self.use_sample_weight:
+            encrypted_forward = self.forwards
+        else:
+        """
         encrypted_forward = cipher.encrypt(self.forwards)
         self.remote_host_forward(encrypted_forward, suffix=current_suffix)
 
@@ -314,6 +333,11 @@ class Host(HeteroGradientBase):
         return unilateral_gradient
 
     def _centralized_compute_gradient(self, data_instances, cipher, current_suffix):
+        """
+        if self.use_sample_weight:
+            encrypted_forward = self.forwards
+        else:
+        """
         encrypted_forward = cipher.encrypt(self.forwards)
         self.remote_host_forward(encrypted_forward, suffix=current_suffix)
 

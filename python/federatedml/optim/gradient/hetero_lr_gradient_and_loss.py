@@ -36,12 +36,14 @@ class Guest(hetero_linear_model_gradient.Guest, loss_sync.Guest):
                                  transfer_variables.loss_intermediate)
 
     def compute_half_d(self, data_instances, w, cipher, batch_index, current_suffix):
+        """
         if self.use_sample_weight:
             self.half_d = data_instances.mapValues(
                 lambda v: 0.25 * (vec_dot(v.features, w.coef_) + w.intercept_) * v.weight - 0.5 * v.label * v.weight)
         else:
-            self.half_d = data_instances.mapValues(
-                lambda v: 0.25 * (vec_dot(v.features, w.coef_) + w.intercept_) - 0.5 * v.label)
+        """
+        self.half_d = data_instances.mapValues(
+            lambda v: 0.25 * (vec_dot(v.features, w.coef_) + w.intercept_) - 0.5 * v.label)
         # encrypted_half_d = cipher[batch_index].encrypt(self.half_d)
         # self.fore_gradient_transfer.remote(encrypted_half_d, suffix=current_suffix)
         return self.half_d
@@ -72,6 +74,13 @@ class Guest(hetero_linear_model_gradient.Guest, loss_sync.Guest):
         where Wh*Xh is a table obtain from host and ∑(Wh*Xh)^2 is a sum number get from host.
         """
         current_suffix = (n_iter_, batch_index)
+        if self.use_sample_weight:
+            LOGGER.info(f"loss not available for weighted data instance.")
+            loss_list = []
+            LOGGER.debug("In compute_loss, loss list are: {}".format(loss_list))
+            self.sync_loss_info(loss_list, suffix=current_suffix)
+            return
+
         n = data_instances.count()
 
         quarter_wx = self.host_forwards[0].join(self.half_d, lambda x, y: x + y)
@@ -140,11 +149,13 @@ class Host(hetero_linear_model_gradient.Host, loss_sync.Host):
         forwards = 1/4 * wx
         """
         # wx = data_instances.mapValues(lambda v: vec_dot(v.features, model_weights.coef_) + model_weights.intercept_)
+        """
         if self.use_sample_weight:
             self.forwards = data_instances.mapValues(
                 lambda v: 0.25 * vec_dot(v.features, model_weights.coef_) * v.weight)
         else:
-            self.forwards = data_instances.mapValues(lambda v: 0.25 * vec_dot(v.features, model_weights.coef_))
+        """
+        self.forwards = data_instances.mapValues(lambda v: 0.25 * vec_dot(v.features, model_weights.coef_))
         return self.forwards
 
     def compute_half_g(self, data_instances, w, cipher, batch_index):
@@ -163,6 +174,9 @@ class Host(hetero_linear_model_gradient.Host, loss_sync.Host):
 
         where Wh*Xh is a table obtain from host and ∑(Wh*Xh)^2 is a sum number get from host.
         """
+        if self.use_sample_weight:
+            LOGGER.info(f"loss not available for weighted data instance.")
+            return
         current_suffix = (n_iter_, batch_index)
         self_wx_square = self.forwards.mapValues(lambda x: np.square(4 * x)).reduce(reduce_add)
         en_wx_square = cipher_operator.encrypt(self_wx_square)

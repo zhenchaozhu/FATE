@@ -226,28 +226,38 @@ class BaseLinearModel(ModelBase):
                                 "a check for input data")
         LOGGER.info("Check for abnormal value passed")
 
-    def check_and_remote_sample_weights(self, data_instances):
+    def check_use_sample_weights(self, data_instances):
         one_sample = data_instances.first()[1]
         if one_sample.weight is None:
-            sample_table = None
-        else:
-            sample_table = data_instances.mapValues(lambda x: x.weight)
-        if not hasattr(self.transfer_variable, "sample_weights"):
-            return sample_table
-        if not self.cipher_operator:
-            raise ValueError("Cipher_operator does not exist when remoting sample weights")
+            LOGGER.debug("use sample weight is False")
+            return False
+        LOGGER.debug("use sample weight is True")
+        return True
 
-        if sample_table:
-            encrypted_sample_table = sample_table.mapValues(lambda x: self.cipher_operator.encrypt(x))
+    """
+    def check_and_remote_sample_weights(self, data_instances):
+        # self.cipher_operator = self.cipher.gen_paillier_cipher_operator()
+        one_sample = data_instances.first()[1]
+        if one_sample.weight is None:
+            sample_weight_table = None
         else:
-            encrypted_sample_table = None
-        self.transfer_variable.sample_weights.remote(encrypted_sample_table, suffix=self.flowid)
-        return sample_table
+            if not self.cipher_operator:
+                raise ValueError("Cipher_operator does not exist when remoting sample weights")
+            # (weight, weight**2)
+            sample_weight_table = data_instances.mapValues(lambda x: (self.cipher_operator.encrypt(x.weight), self.cipher_operator.operator.encrpt(x.weight**2)))
+            LOGGER.debug(f"sample weight table raw is: {list(sample_weight_table.collect())}")
+        if not hasattr(self.transfer_variable, "sample_weights"):
+            return sample_weight_table
+
+        self.transfer_variable.sample_weights.remote(sample_weight_table, idx=-1, suffix=self.flowid)
+        LOGGER.debug(f"Remote sample weight table, table is: {list(sample_weight_table.collect())}")
+        return sample_weight_table
+
 
     def get_sample_weight(self):
         if not hasattr(self.transfer_variable, "sample_weights"):
             return None
-        sample_table = self.transfer_variable.sample_weights.get(suffix=self.flowid)
+        sample_table = self.transfer_variable.sample_weights.get(idx=0, suffix=self.flowid)
         return sample_table
 
     @staticmethod
@@ -256,3 +266,4 @@ class BaseLinearModel(ModelBase):
         weighted_data_instance.weight = weight
         return weighted_data_instance
 
+    """
