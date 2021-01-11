@@ -1,4 +1,4 @@
-work_mode: 1
+work_mode: 0
 use_registry: false
 fateflow:
   # you must set real ip address or 127.0.0.1, 0.0.0.0 is not supported

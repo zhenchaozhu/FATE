@@ -1,0 +1,7 @@
+{
+    "components" : {
+        "network_test_0": {
+            "module": "NetworkTest"
+        }
+    }
+}

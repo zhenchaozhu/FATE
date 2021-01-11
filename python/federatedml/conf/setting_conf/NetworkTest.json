@@ -1,0 +1,15 @@
+{
+    "module_path":  "federatedml/toy_example/network_test",
+    "param_class" : "federatedml/param/network_test_param/NetworkTestParam",
+    "role":
+    {
+        "guest":
+        {
+            "program": "network_test_guest_bid.py/NetworkTestGuest"
+        },
+        "host":
+        {
+            "program": "network_test_host_bid.py/NetworkTestHost"
+        }
+    }
+}

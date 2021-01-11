@@ -1,0 +1,47 @@
+{
+  "initiator": {
+    "role": "guest",
+    "party_id": 10000
+  },
+  "job_parameters": {
+    "work_mode": 0,
+    "backend": 0
+  },
+  "role": {
+    "guest": [
+      10000
+    ],
+    "host": [
+      9999
+    ]
+  },
+  "role_parameters": {
+    "guest": {
+      "network_test_0": {
+        "seed": [
+          123
+        ]
+      }
+    },
+    "host": {
+      "network_test_0": {
+        "seed": [
+          321
+        ]
+      }
+    }
+  },
+  "algorithm_parameters": {
+    "network_test_0": {
+      "use_tcp": true,
+      "one_way": false,
+      "block_size": 1000,
+      "partition": 48,
+      "data_num": 1000,
+      "server_host": "0.0.0.0",
+      "connect_server_host": "127.0.0.1",
+      "server_port": 7766,
+      "test_iter": 1
+    }
+  }
+}
